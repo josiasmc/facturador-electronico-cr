@@ -1,10 +1,10 @@
 <?php
 use \Defuse\Crypto\Key;
 $config = [
-    'host' => 'localhost',
-    'db_name' => 'e_invoicing',
-    'username' => 'root',
-    'password' => 'localhost',
+    'dominio' => 'localhost',
+    'base_datos' => 'e_invoicing',
+    'usuario' => 'root',
+    'contraseña' => 'localhost',
     'cryptoKey' => implode(
         [
         'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060',
@@ -14,10 +14,10 @@ $config = [
     )
 ];
 $db = new \mysqli(
-    $config['host'], 
-    $config['username'], 
-    $config['password'], 
-    $config['db_name']
+    $config['dominio'], 
+    $config['usuario'], 
+    $config['contraseña'], 
+    $config['base_datos']
 );
 $container = [
     'cryptoKey' => Key::loadFromAsciiSafeString($config['cryptoKey']),

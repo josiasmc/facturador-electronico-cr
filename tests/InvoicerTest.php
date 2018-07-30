@@ -1,6 +1,6 @@
 <?php
 
-namespace Contica\eInvoicing;
+namespace Contica\eFacturacion;
 
 use \Defuse\Crypto\Key;
 use  \PHPUnit\Framework\TestCase;
@@ -12,12 +12,12 @@ class InvoicerTest extends TestCase
      */
     public function testSetsDefaultContainerWithConstructor()
     {
-        $invoicer = new Invoicer(['password' => 'localhost']);
+        $invoicer = new Facturador(['password' => 'localhost']);
         $config = [
-            'host' => 'localhost',
-            'db_name' => 'e_invoicing',
-            'username' => 'root',
-            'password' => 'localhost',
+            'servidor' => 'localhost',
+            'base_datos' => 'e_invoicing',
+            'usuario' => 'root',
+            'contraseña' => 'localhost',
             'cryptoKey' => implode(
                 [
                 'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060',
@@ -27,10 +27,10 @@ class InvoicerTest extends TestCase
             )
         ];
         $db = new \mysqli(
-            $config['host'], 
-            $config['username'], 
-            $config['password'], 
-            $config['db_name']
+            $config['servidor'], 
+            $config['usuario'], 
+            $config['contraseña'], 
+            $config['base_datos']
         );
         $container = [
             'cryptoKey' => Key::loadFromAsciiSafeString($config['cryptoKey']),
@@ -45,7 +45,7 @@ class InvoicerTest extends TestCase
     
     public function testSetCompany()
     {
-        $invoicer = new Invoicer(['password' => 'localhost']);
+        $invoicer = new Facturador(['password' => 'localhost']);
         $cert = fopen(__DIR__ . '/cert.p12', 'r');
         $company = [
             'nombre' => 'PHP_Unit_testing',
@@ -57,7 +57,7 @@ class InvoicerTest extends TestCase
             'id_ambiente' => 1
         ];
         fclose($cert);
-        $this->assertTrue($invoicer->setCompany(901230456, $company));
+        $this->assertTrue($invoicer->guardarEmpresa(901230456, $company));
 
     }
 }
