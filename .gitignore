@@ -1,0 +1,4 @@
+.vscode/*
+vendor/*
+e_facturacion.sql
+build/*
