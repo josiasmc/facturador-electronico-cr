@@ -1,11 +1,11 @@
 {
-    "name": "contica/cr-electronic-invoicing",
+    "name": "contica/facturacion-electronica-cr",
     "type": "library",
-    "description": "E-invoicing solution for Costa Rica",
+    "description": "Componente para facturacion electronica en Costa Rica",
     "keywords": [
         "costa rica",
-        "electronic-invoicing",
-        "e-invoicing"
+        "facturacion-electronica",
+        "facturacion"
     ],
     "homepage": "https://github.com/contica/cr-electronic-invoicing",
     "license": "MIT",
@@ -26,12 +26,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Contica\\eInvoicing\\": "src"
+            "Contica\\eFacturacion\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Contica\\eInvoicing\\": "tests"
+            "Contica\\eFacturacion\\": "tests"
         }
     },
     "scripts": {
@@ -41,7 +41,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "1.0-dev"
+            "dev-master": "1.0.0-dev"
         }
     },
     "config": {
