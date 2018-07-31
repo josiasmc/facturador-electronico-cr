@@ -1,9 +1,8 @@
 <?php
 /**
- * Companies interface for the eInvoicer
+ * Interfaz para acceder a las empresas del facturador
  * 
- * This provides all the functions for handling
- * company creation and modification
+ * Funciones para crear, modificar, y coger información de empresas
  * 
  * PHP version 7.1
  * 
@@ -126,15 +125,11 @@ class Empresas
     {
         $db = $this->container['db'];
         $cryptoKey = $this->container['cryptoKey'];
-        $sql = implode(
-            [
-            "SELECT Cedula As cedula, Nombre AS nombre, Email AS email, ",
-            "Usuario_mh AS usuario, ",
-            "Password_mh AS contra, Pin_mh AS pin, Id_ambiente_mh AS id_ambiente ",
-            "FROM Empresas ",
-            "WHERE Cedula=$id"
-            ]
-        );
+        $sql = "SELECT Cedula As cedula, Nombre AS nombre, Email AS email,
+                    Usuario_mh AS usuario, Password_mh AS contra, 
+                    Pin_mh AS pin, Id_ambiente_mh AS id_ambiente
+                    FROM Empresas
+                    WHERE Cedula=$id";
         $result = $db->query($sql);
         if ($result->num_rows > 0) {
             $data = $result->fetch_assoc();
