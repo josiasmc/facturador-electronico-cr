@@ -23,7 +23,7 @@ composer require contica/facturacion-electronica-cr
 $opciones = [
     'servidor' => 'localhost',
     'usuario' => 'root',
-    'contraseña' => 'contra'
+    'contra' => 'contra'
 ];
 $facturador = new Contica\eFacturacion\Facturador($opciones);
 
