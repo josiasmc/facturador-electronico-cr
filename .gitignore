@@ -4,3 +4,4 @@ e_facturacion.sql
 build/*
 *.odt
 *.odt#
+*.pdf
