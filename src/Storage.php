@@ -49,11 +49,11 @@ class Storage
             throw new \Exception("Error de conexión MySQL: " . $db->connect_error);
         }
 
-        //Check for up to date database version
-        Storage::_versionCheck($db, 1); // Set to version required by component
 
         //Check for database existence
         if ($db->select_db($db_name)) {
+            //Check for up to date database version
+            Storage::_versionCheck($db, 1); // Set to version required by component
             return $db;
         } else {            
             return Storage::_createDB($db, $db_name, $db_version);
@@ -147,7 +147,7 @@ class Storage
      */
     private function _versionCheck($db, $db_version)
     {
-        $sql = 'SELECT * FROM Version';
+        $sql = "SELECT * FROM Version";
         $version = $db->query($sql)->fetch_assoc()['db_version'];
         if ($db_version == $version) {
             return true;

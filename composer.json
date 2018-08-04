@@ -18,7 +18,9 @@
     "require": {
         "php": "~7.0",
         "defuse/php-encryption": "^2.2",
-        "guzzlehttp/guzzle": "^6.3"
+        "guzzlehttp/guzzle": "^6.3",
+        "nekman/luhn-algorithm": "^4.0",
+        "sabre/xml": "^2.1"
     },
     "require-dev": {
         "phpunit/phpunit": ">=5.4.3",

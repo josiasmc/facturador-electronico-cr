@@ -81,7 +81,7 @@ class Facturador
         if (!$empresas->exists($id)) {
             return $empresas->add($id, $datos);
         } else {
-            return $empresas->update($id, $datos);
+            return $empresas->modify($id, $datos);
         }
     }
 
@@ -109,5 +109,20 @@ class Facturador
     {
         $empresas = new Empresas($this->container);
         return $empresas->getCert($id);
+    }
+
+    /**
+     * Enviar compropbante al Ministerio de Hacienda
+     * 
+     * @param array $datos Los datos para construir el comprobante para enviar
+     * 
+     * @return string La clave numerica del comprobante
+     */
+    public function enviarComprobante($datos)
+    {
+        $comprobante = new Comprobante($this->container, $datos);
+        return $comprobante->enviar();
+
+        
     }
 }

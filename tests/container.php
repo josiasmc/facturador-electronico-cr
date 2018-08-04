@@ -2,7 +2,7 @@
 use \Defuse\Crypto\Key;
 $config = [
     'dominio' => 'localhost',
-    'base_datos' => 'e_invoicing',
+    'base_datos' => 'e_facturacion',
     'usuario' => 'root',
     'contraseña' => 'localhost',
     'cryptoKey' => implode(

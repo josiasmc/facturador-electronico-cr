@@ -226,7 +226,7 @@ class Token
     {
         $now = date_timestamp_get(date_create());
         //Devuelve true si le queda mas que 5 segundos
-        if (($expires-$now) > 5) {
+        if (((int)$expires-$now) > 5) {
             return true;
         }
         return false;
