@@ -205,9 +205,9 @@ class CreadorXML
      */
     private function _firmarXml($xml, $ns)
     {
-        $file = fopen(__DIR__ . "/fe.xml", "w");
+        /*$file = fopen(__DIR__ . "/fe.xml", "w");
         fwrite($file, $xml);
-        fclose($file);
+        fclose($file);*/
         // Definir los namespace para los diferentes nodos
         $xmlns = [
             'xmlns' => 'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" '.

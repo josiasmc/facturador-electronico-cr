@@ -126,7 +126,7 @@ class Comprobante
                 // de forma normal, para ser enviado en un futuro.
                 $res = $e->getResponse();
                 echo Psr7\str($res);
-                echo 'Respuesta: ' . $res->getStatusCode()."\n";
+                //echo 'Respuesta: ' . $res->getStatusCode()."\n";
             } catch (Exception\ConnectException $e) {
                 // a connection problem
                 echo 'Error de conexion';
@@ -146,9 +146,9 @@ class Comprobante
         }
                 
         // Guardar el comprobante
-        $file = fopen(__DIR__ . "/inv.xml", "w");
+        /*$file = fopen(__DIR__ . "/inv.xml", "w");
         fwrite($file, $xml);
-        fclose($file);
+        fclose($file);*/
         $xmldb = $db->real_escape_string($xml);
         $cl = $this->clave;
         $sql = "INSERT INTO Emisiones ".
