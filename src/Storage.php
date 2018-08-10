@@ -51,9 +51,10 @@ class Storage
 
 
         //Check for database existence
+        $db_version = 2; // Set to version required by component
         if ($db->select_db($db_name)) {
             //Check for up to date database version
-            Storage::_versionCheck($db, 1); // Set to version required by component
+            Storage::_versionCheck($db, $db_version); 
             return $db;
         } else {            
             return Storage::_createDB($db, $db_name, $db_version);
@@ -111,9 +112,9 @@ class Storage
             'CREATE TABLE `Tokens` (
                 `Client_id` int(12) NOT NULL,
                 `access_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
-                `expires_in` date NOT NULL,
+                `expires_in` INT(16) NOT NULL,
                 `refresh_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
-                `refresh_expires_in` date NOT NULL)',
+                `refresh_expires_in` INT(16) NOT NULL)',
             'CREATE TABLE `Version` ( `db_version` INT(3) NOT NULL )',
             "INSERT INTO `Version` (`db_version`) VALUES ($db_version)",
             'ALTER TABLE `Ambientes`
@@ -148,16 +149,27 @@ class Storage
     private function _versionCheck($db, $db_version)
     {
         $sql = "SELECT * FROM Version";
+        // Get current database version
         $version = $db->query($sql)->fetch_assoc()['db_version'];
         if ($db_version == $version) {
             return true;
         }
+
         $versions = [
-            1 => "UPDATE Version SET $db_version;"
+            1 => "UPDATE Version SET $db_version",
+            2 => [
+            "UPDATE Version SET `db_version` = $db_version",
+            "ALTER TABLE `Tokens` CHANGE `expires_in` `expires_in` INT(16) NOT NULL",
+            "ALTER TABLE `Tokens` CHANGE `refresh_expires_in` 
+            `refresh_expires_in` INT(16) NOT NULL"
+            ]
         ];
-        foreach ($versions as $version => $statement) {
-            if ($version > $db_version) {
-                $db->query($statement);
+        foreach ($versions as $ver => $statements) {
+            if ($ver > $version) {
+                foreach ($statements as $statement) {
+                    $db->query($statement);
+                }                
+                echo $db->error;
             }
         }
         return true;

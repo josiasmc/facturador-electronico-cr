@@ -16,8 +16,10 @@
 namespace Contica\eFacturacion;
 
 use \Nekman\LuhnAlgorithm\Number;
+use \Nekman\LuhnAlgorithm\LuhnAlgorithmFactory;
 use \GuzzleHttp\Client;
-use function GuzzleHttp\json_encode;
+use \GuzzleHttp\Exception;
+use \GuzzleHttp\Psr7;
 
 /**
  * Class providing functions to manage electronic invoices
@@ -32,11 +34,14 @@ use function GuzzleHttp\json_encode;
 class Comprobante
 {
     protected $container;
-    protected $id;
-    protected $consecutivo;
-    protected $clave;
-    protected $tipo;
-    protected $datos;
+    protected $id; //cedula de empresa
+    protected $consecutivo; // consecutivo de comprobante
+    protected $clave; // clave generada por este sistema
+    protected $tipo; // tipo de comprobante
+    protected $datos; // la informacion del comprobante
+    protected $situacion; // 1=Normal, 2=Contingencia, 3=Sin Internet
+    protected $estado; // el estado: 1=Pendiente, 2=Enviado, 3=Confirmado
+                        //4=Aceptado, 5=AceptadoParcialmente, 6=Rechazado
 
     /**
      * Constructor for the Comprobantes
@@ -57,8 +62,11 @@ class Comprobante
         $this->container['id'] = $id;
         $this->consecutivo = $datos['NumeroConsecutivo'];
         $this->tipo = substr($this->consecutivo, 8, 2);
+        $this->situacion = 1; //Normal
+        //TO DO: Codigo para detectar factura por contingencia
+        $this->estado = 1; //Pendiente
         $clave = $this->_generarClave();
-        echo 'Clave: ' . $clave . "\n";//-----------------
+        //echo 'Clave: ' . $clave . "\n";//-----------------
         $this->clave = $clave;
         $this->datos = array_merge(['Clave' => $clave], $datos);
     }
@@ -74,15 +82,7 @@ class Comprobante
         $db = $this->container['db'];
         $creadorXml = new CreadorXML($this->container);
         $xml = $creadorXml->crearXml($datos);
-        // Guardar el comprobante
-        $xmldb = $db->real_escape_string($xml);
-        $cl = $db->real_escape_string($this->clave);
-        $sql = "INSERT INTO Emisiones ".
-        "(Clave, Cedula, Estado, xmlFirmado) VALUES ".
-        "(" . $cl . ", " . $this->id . ", ". 
-        "1" . ", '" . $xmldb . "')";
-        $db->query($sql);
-        echo $db->error;
+
         // Enviar el comprobante a Hacienda
         $post = [
             'clave' => $datos['Clave'],
@@ -99,33 +99,65 @@ class Comprobante
         ];
         $token = new Token($this->id, $this->container);
         $token = $token->getToken();
-        $sql  = 'SELECT Ambientes.URI_API '.
+        $estado = 1; //Pendiente
+        if ($token) {
+            // Hacer un envio solamente si logramos recibir un token
+            $sql  = 'SELECT Ambientes.URI_API '.
             'FROM Ambientes '.
             'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
             'WHERE Empresas.Cedula = ' . $this->id;
-        $uri = $db->query($sql)->fetch_assoc()['URI_API'];
-        echo $uri."\n";
-        $client = new Client(['headers' => ['Authorization' => 'bearer ' . $token]]);
-        echo 'Listo para hacer el post. ';
-        /*
-        echo json_encode($post);
-        $res = $client->post($uri, ['json' => $post]);
-        echo 'Respuesta: ' . $res->getStatusCode();
-        return $xml;*/
-        $header = array(
-            'Authorization: bearer ' . $token,
-            'Content-Type: application/json',
-        );
+            $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
+            //echo "\nURL: $uri \n";
+            $client = new Client(
+                ['headers' => ['Authorization' => 'bearer ' . $token]]
+            );
+            //echo "Listo para hacer el post.\n\n";
 
-        $curl = curl_init($uri);
-        curl_setopt($curl, CURLOPT_HEADER, false);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $header);
-        curl_setopt($curl, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($post));
-        utf8_encode(curl_exec($curl));
+            try {
+                $res = $client->post($uri, ['json' => $post]);
+                $code = $res->getStatusCode();
+                echo "\nRespuesta: $code\n";
+                if ($code == 201 || $code == 202) {
+                    $this->estado = 2; //enviado
+                }
+            } catch (Exception\ClientException $e) {
+                // a 400 level exception occured
+                // cuando ocurre este error, el comprobante se guarda 
+                // de forma normal, para ser enviado en un futuro.
+                $res = $e->getResponse();
+                echo Psr7\str($res);
+                echo 'Respuesta: ' . $res->getStatusCode()."\n";
+            } catch (Exception\ConnectException $e) {
+                // a connection problem
+                echo 'Error de conexion';
+                $this->situacion = 3; //sin internet
+            };
+        } else {
+            $this->situacion = 3; //sin internet (no pudimos conseguir token)
+        }
 
-        echo curl_getinfo($curl, CURLINFO_RESPONSE_CODE)."\n";
+        if ($this->situacion == 3) {
+            // No hay internet, tenemos que cambiarle la clave
+            $cl = $this->_generarClave();
+            $datos['Clave'] = $cl;
+            $this->clave = $cl;
+            $this->datos = $datos;
+            $xml = $creadorXml->crearXml($datos);
+        }
+                
+        // Guardar el comprobante
+        $file = fopen(__DIR__ . "/inv.xml", "w");
+        fwrite($file, $xml);
+        fclose($file);
+        $xmldb = $db->real_escape_string($xml);
+        $cl = $this->clave;
+        $sql = "INSERT INTO Emisiones ".
+        "(Clave, Cedula, Estado, xmlFirmado) VALUES ".
+        "(" . $cl . ", " . $this->id . ", ". 
+        $this->estado . ", '" . $xmldb . "')";
+        $db->query($sql);
+        echo $db->error."\n";
+        return $this->clave;
     }
 
     /**
@@ -145,13 +177,21 @@ class Comprobante
      */
     private function _generarClave()
     {
+        $luhn = LuhnAlgorithmFactory::create();
         $pais = '506';
         $fecha = date('dmy');
         $cedula = str_pad($this->id, 12, '0', STR_PAD_LEFT);
         $consecutivo = $this->consecutivo;
-        $estado = '1';
-        $codigo = '99999999';
-        $clave =  $pais . $fecha . $cedula . $consecutivo . $estado . $codigo;
+        $situacion = $this->situacion;
+        $codigo = $luhn->calcCheckDigit(new Number($pais));
+        $codigo .= $luhn->calcCheckDigit(new Number($fecha));
+        $codigo .= $luhn->calcCheckDigit(new Number($cedula));
+        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 0, 3)));
+        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 3, 5)));
+        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 8, 2)));
+        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, -10)));
+        $codigo .= $luhn->calcCheckDigit(new Number($situacion));
+        $clave =  $pais . $fecha . $cedula . $consecutivo . $situacion . $codigo;
         if (!(strlen($clave) === 50)) {
             throw new \Exception('La clave no tiene la correcta longitud');
         }

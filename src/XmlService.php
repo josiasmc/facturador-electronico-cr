@@ -71,10 +71,11 @@ class XmlService extends \Sabre\Xml\Service
      */
     function writeSignature($rootElementName, $value)
     {
-        $w = $this->getWriter();
+        $w = new XmlWriter;
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
         $w->setIndent(true);
+        $w->sig = true;
         if (is_array($rootElementName)) {
             $w->startElement($rootElementName['name']);
             $w->writeAttributes($rootElementName['attributes']);
@@ -100,6 +101,7 @@ class XmlService extends \Sabre\Xml\Service
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
         $w->setIndent(true);
+        $w->sig = true;
         $w->disableNs();
         if (is_array($rootElementName)) {
             $w->startElement($rootElementName['name']);

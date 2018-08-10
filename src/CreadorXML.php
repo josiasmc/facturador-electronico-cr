@@ -79,15 +79,15 @@ class CreadorXML
             break;
         // Nota de debito electronico
         case '02':
-            return $this->_crearNotaDebito();
+            return $this->_crearNotaDebito($datos);
             break;
         // Nota de credito electronico
         case '03':
-            return $this->_crearNotaCredito();
+            return $this->_crearNotaCredito($datos);
             break;
         // Tiquete electronico
         case '04':
-            return $this->_crearTiquete();
+            return $this->_crearTiquete($datos);
             break;
         // Confirmacion de aceptacion del comprobante electronico
         case '05':
@@ -126,67 +126,133 @@ class CreadorXML
         ];
         
         $xml = $xmlService->write('{' . $ns . '}' . 'FacturaElectronica', $datos);
+        return $this->_firmarXml($xml, $ns);
+    }
 
-        // Definir los namespace para los diferentes nodos
-        $xmlns = [
-        'xmlns' => 'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" '.
-            'xmlns:fe="http://www.dian.gov.co/contratos/facturaelectronica/v1" '.
-            'xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"',
-        'xmlns_keyinfo' => 
-            'xmlns="https://tribunet.hacienda.go.cr/docs/esquemas/2017/v4.2/facturaElectronica" ' .
-            'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
-        'xmlns_signedprops' =>
-            'xmlns="https://tribunet.hacienda.go.cr/docs/esquemas/2017/v4.2/facturaElectronica" ' .
-            'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
-            'xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" ' .
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
-        'xmlns_signeg' =>
-            'xmlns="https://tribunet.hacienda.go.cr/docs/esquemas/2017/v4.2/facturaElectronica" ' .
-            'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
-            'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
-            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+    /**
+     * Creador del XML firmado para nota de debito electronica
+     * 
+     * @param array $datos Los datos de la nota de debito
+     * 
+     * @return string El contenido del XML firmado
+     */
+    private function _crearNotaDebito($datos)
+    {
+        $ns = 'https://tribunet.hacienda.go.cr/'.
+            'docs/esquemas/2017/v4.2/notaDebitoElectronica';
+        $xmlService = new XmlService;
+        $xmlService->namespaceMap = [
+            'http://www.w3.org/2001/XMLSchema' => 'xsd',
+            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
+            $ns => ''
         ];
-        return $this->_firmarXml($xml, $xmlns);
+        
+        $xml = $xmlService->write('{' . $ns . '}' . 'NotaDebitoElectronica', $datos);
+        return $this->_firmarXml($xml, $ns);
+    }
+
+    /**
+     * Creador del XML firmado para nota de credito electronica
+     * 
+     * @param array $datos Los datos de la nota de credito
+     * 
+     * @return string El contenido del XML firmado
+     */
+    private function _crearNotaCredito($datos)
+    {
+        $ns = 'https://tribunet.hacienda.go.cr/'.
+            'docs/esquemas/2017/v4.2/notaCreditoElectronica';
+        $xmlService = new XmlService;
+        $xmlService->namespaceMap = [
+            'http://www.w3.org/2001/XMLSchema' => 'xsd',
+            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
+            $ns => ''
+        ];
+        
+        $xml = $xmlService->write('{' . $ns . '}' . 'NotaCreditoElectronica', $datos);
+        return $this->_firmarXml($xml, $ns);
+    }
+
+    /**
+     * Creador del XML firmado para tiquete electronico
+     * 
+     * @param array $datos Los datos del tiquete
+     * 
+     * @return string El contenido del XML firmado
+     */
+    private function _crearTiquete($datos)
+    {
+        $ns = 'https://tribunet.hacienda.go.cr/'.
+            'docs/esquemas/2017/v4.2/tiqueteElectronico';
+        $xmlService = new XmlService;
+        $xmlService->namespaceMap = [
+            'http://www.w3.org/2001/XMLSchema' => 'xsd',
+            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
+            $ns => ''
+        ];
+        
+        $xml = $xmlService->write('{' . $ns . '}' . 'TiqueteElectronico', $datos);
+        return $this->_firmarXml($xml, $ns);
     }
 
     /**
      * Firmador de XML
      * 
-     * @param string $xml   El xml a firmar
-     * @param string $xmlns El namespace del xml
+     * @param string $xml El xml a firmar
+     * @param string $ns  El namespace del xml
      * 
      * @return string El XML firmado
      */
-    private function _firmarXml($xml, $xmlns)
+    private function _firmarXml($xml, $ns)
     {
+        $file = fopen(__DIR__ . "/fe.xml", "w");
+        fwrite($file, $xml);
+        fclose($file);
+        // Definir los namespace para los diferentes nodos
+        $xmlns = [
+            'xmlns' => 'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" '.
+                'xmlns:fe="http://www.dian.gov.co/contratos/facturaelectronica/v1" '.
+                'xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"',
+            'xmlns_keyinfo' => 
+                'xmlns="'.$ns.'" ' .
+                'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
+                'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
+                'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+            'xmlns_signedprops' =>
+                'xmlns="'.$ns.'" ' .
+                'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
+                'xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" ' .
+                'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
+                'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
+            'xmlns_signeg' =>
+                'xmlns="'.$ns.'" ' .
+                'xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ' .
+                'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' .
+                'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+            ];
+
         $xmlService = new XmlService;
         $xmlService->namespaceMap = [
             'http://www.w3.org/2000/09/xmldsig#' => 'ds',
             'http://uri.etsi.org/01903/v1.3.2#' => 'xades'
         ];
-        //canoniza todo el documento  para el digest
-        $doc = new \DOMDocument('1.0', 'UTF-8');
-        $doc->loadXML($xml);
-        $docDigest = base64_encode(hash('sha256', $doc->C14N(), true));
+        //canoniza todo el documento y crea el digest
+        $docDigest = $this->_c14DigestSHA256($xml);
 
         $ns_ds     = '{http://www.w3.org/2000/09/xmldsig#}';
         $ns_xades  = '{http://uri.etsi.org/01903/v1.3.2#}';
         $sha1alg   = 'http://www.w3.org/2000/09/xmldsig#sha1';
         $sha256alg = 'http://www.w3.org/2001/04/xmlenc#sha256';
 
-        $ID               = "ddb543c7-ea0c-4b00-95b9-d4bfa2b4e411";
+        $ID               = $this->genId();
         $signatureID      = "Signature-$ID";
         $signatureValueId = "SignatureValue-$ID";
-        $XadesObjectId    = "XadesObjectId-43208d10-650c-4f42-af80-fc889962c9ac";
+        $XadesObjectId    = "XadesObjectId-" . $this->genId();
         $KeyInfoId        = "KeyInfoId-$signatureID";
-        $Reference0Id     = "Reference-0e79b719-635c-476f-a59e-8ac3ba14365d";
+        $Reference0Id     = "Reference-" . $this->genId();
         $Reference1Id     = "ReferenceKeyInfo";
         $SignedPropertiesId = "SignedProperties-$signatureID";
-        $QualifyingProps  
-            = "QualifyingProperties-012b8df6-b93e-4867-9901-83447ffce4bf";
+        $QualifyingProps  = "QualifyingProperties-" . $this->genId();
         // Certificate digest
         $certDigest       = base64_encode(
             openssl_x509_fingerprint($this->publicKey, "sha256", true)
@@ -203,14 +269,17 @@ class CreadorXML
         // Certificate Serial Number
         $certSN     = $certData['serialNumber'];
 
-        $sigPolicyId = 'https://tribunet.hacienda.go.cr/docs/esquemas/2016/v4.2/'.
-        'ResolucionComprobantesElectronicosDGT-R-48-2016_4.2.pdf';
-        $sigPolicyHash = 'ZGUwNDAyYWY0MWQ4NDlkYTMxOGI0NjVhNDVhMjc4YWFjZGU2MWRmMg==';
+        $sigPolicyId = 'https://tribunet.hacienda.go.cr/docs/esquemas/2016/v4/'.
+        'Resolucion%20Comprobantes%20Electronicos%20%20DGT-R-48-2016.pdf';
+        $sigPolicyHash = 'V8lVVNGDCPen6VELRD1Ja8HARFk='; //hash en sha1 y base64
+        // echo {sha1sum} | xxd -r -p | base64
 
         date_default_timezone_set("America/Costa_Rica");
         $signTime = date('c');
 
-        //--------KeyInfo node----------
+        //---------------Crear los objetos a firmar----------------------
+        
+        //----------------------Objeto KeyInfo---------------------------
         $KeyInfo = [
             $ns_ds . 'X509Data' => [
                 $ns_ds . 'X509Certificate' => $this->_cleanKey($this->publicKey)
@@ -222,7 +291,7 @@ class CreadorXML
                 ]
             ]
         ];
-        // --------Prepare the KeyInfo Digest--------
+        //----------------Prepare the KeyInfo Digest---------------------
         $xml_KeyInfo = $xmlService->writeFragment(
             [
                 'name' => $ns_ds . 'KeyInfo',
@@ -232,12 +301,14 @@ class CreadorXML
             ],
             $KeyInfo
         );
+        $xml_KeyInfo = preg_replace('/>\s+</', '><', $xml_KeyInfo);
+        $xmlDsKeyInfo = trim($xml_KeyInfo);
         $xml_KeyInfo = str_replace(
             '<ds:KeyInfo',
             '<ds:KeyInfo ' . $xmlns['xmlns_keyinfo'],
             $xml_KeyInfo
         );
-        $keyDigest = $this->_c14DigestSHA256($xml_KeyInfo);
+        $keyDigest = $this->_c14DigestSHA256(trim($xml_KeyInfo));
 
         //-------SignedProperties node--------
         $SignedProperties = [
@@ -302,6 +373,8 @@ class CreadorXML
             ],
             $SignedProperties
         );
+        $xml_SignedProperties = preg_replace('/>\s+</', '><', $xml_SignedProperties);
+        $xmlDsSignedProperties = trim($xml_SignedProperties);
         $xml_SignedProperties = str_replace(
             '<xades:SignedProperties',
             '<xades:SignedProperties ' . $xmlns['xmlns_signedprops'],
@@ -322,6 +395,7 @@ class CreadorXML
                 'Algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
                 ]
             ],
+            // Reference for the XML document
             [
                 'name' => $ns_ds . 'Reference',
                 'attributes' => [
@@ -330,12 +404,10 @@ class CreadorXML
                 ],
                 'value' => [
                     $ns_ds . 'Transforms' => [
-                        [
                         'name' => $ns_ds . 'Transform',
                         'attributes' => [
                             'Algorithm' => 
                             'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
-                        ]
                         ]
                     ],
                     [
@@ -347,11 +419,12 @@ class CreadorXML
                     $ns_ds . 'DigestValue' => $docDigest
                 ]
             ],
+            // Reference for KeyInfo object
             [
                 'name' => $ns_ds . 'Reference',
                 'attributes' => [
                     'Id' => $Reference1Id,
-                    'URI' => $KeyInfoId
+                    'URI' => '#'.$KeyInfoId
                 ],
                 'value' => [
                     [
@@ -363,6 +436,7 @@ class CreadorXML
                     $ns_ds . 'DigestValue' => $keyDigest
                 ]
             ],
+            // Reference for SignedProperties object
             [
                 'name' => $ns_ds . 'Reference',
                 'attributes' => [
@@ -380,10 +454,13 @@ class CreadorXML
                 ]
             ]
         ];
+        // El elemento SignedInfo es el que se firma criptograficamente
         $xml_SignedInfo = $xmlService->writeFragment(
             $ns_ds . 'SignedInfo',
             $SignedInfo
         );
+        $xml_SignedInfo = preg_replace('/>\s+</', '><', $xml_SignedInfo);
+        $xmlDsSignedInfo = trim($xml_SignedInfo);
         $xml_SignedInfo = str_replace(
             '<ds:SignedInfo',
             '<ds:SignedInfo ' . $xmlns['xmlns_signeg'],
@@ -394,8 +471,8 @@ class CreadorXML
         $d1p->loadXML($xml_SignedInfo);
         $xml_SignedInfo = $d1p->C14N();
 
+        // La firma es el resultado de firmar el nodo SignedInfo
         $signatureResult = "";
-        $algo            = "";
 
         openssl_sign(
             $xml_SignedInfo,
@@ -416,15 +493,15 @@ class CreadorXML
                 ],
                 'value' => [
                     'name' => $ns_xades . 'SignedProperties',
-                    'attributes' => [
-                        'Id' => $SignedPropertiesId,
-                    ],
-                    'value' => $SignedProperties
+                    'value' => ''
                 ]
             ]
         ];
         $firma = [
-            $ns_ds . 'SignedInfo' => $SignedInfo,
+            [
+                'name' => $ns_ds . 'SignedInfo',
+                'value' => ''
+            ],
             [
                 'name' => $ns_ds . 'SignatureValue',
                 'attributes' => [
@@ -434,10 +511,7 @@ class CreadorXML
             ],
             [
                 'name' => $ns_ds . 'KeyInfo',
-                'attributes' => [
-                    'Id' => $KeyInfoId
-                ],
-                'value' => $KeyInfo
+                'value' => ''
             ],
             [
                 'name' => $ns_ds . 'Object',
@@ -457,7 +531,26 @@ class CreadorXML
             ],
             $firma
         );
-        return str_replace('</Factura', $xml_firma . "</Factura", $xml);
+        $xml_firma = str_replace(
+            '<ds:KeyInfo></ds:KeyInfo>',
+            $xmlDsKeyInfo,
+            $xml_firma
+        );
+        $xml_firma = str_replace(
+            '<xades:SignedProperties></xades:SignedProperties>',
+            $xmlDsSignedProperties,
+            $xml_firma
+        );
+        $xml_firma = str_replace(
+            '<ds:SignedInfo></ds:SignedInfo>',
+            $xmlDsSignedInfo,
+            $xml_firma
+        );
+        $xml_firma = preg_replace('/>\s+</', '><', $xml_firma);
+        // Insertar la firma en el documento xml
+        $rPos = strripos($xml, '</', strlen($xml)-30);
+        $rStr = substr($xml, $rPos);
+        return str_replace($rStr, rtrim($xml_firma) . $rStr, $xml);
 
     }/*
     public function getCert()
@@ -467,19 +560,17 @@ class CreadorXML
     */
 
     /**
-     * C14 SHA256 digest de una cadena
+     * C14N SHA256 digest de una cadena
      * 
-     * @param string $text El texto para procesar
+     * @param string $xml El texto para procesar
      * 
      * @return string El Digest
      */
-    private function _c14DigestSHA256($text) 
+    private function _c14DigestSHA256($xml) 
     {
-        $digest = str_replace("\r", "", str_replace("\n", "", $text));
         $d = new \DOMDocument('1.0', 'UTF-8');
-        $d->loadXML($digest);
-        $digest = $d->C14N();
-        return base64_encode(hash('sha256', $digest, true));
+        $d->loadXML($xml);
+        return base64_encode(hash('sha256', $d->C14N(), true));
     }
 
     /**
@@ -497,11 +588,35 @@ class CreadorXML
                     '-----BEGIN CERTIFICATE-----',
                     '-----END CERTIFICATE-----',
                     '-----BEGIN PRIVATE KEY-----',
-                    '-----END PRIVATE KEY-----'
+                    '-----END PRIVATE KEY-----',
+                    "\r",
+                    "\n"
                 ],
                 '',
                 $key
             )
         );
+    }
+
+    /**
+     * Generador de ids
+     * 
+     * @return string el id generado
+     */
+    function genId()
+    {
+        $id = [
+            date('ym'),
+            date('d'),
+            date('H'),
+            date('i'),
+            date('U')
+        ];
+        $ans = "";
+        $rand = rand(127, 512);
+        foreach ($id as $value) {
+            $ans .= '-' . base_convert($value * $rand, 10, 16);
+        }
+        return substr($ans, 1);
     }
 }

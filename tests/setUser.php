@@ -2,7 +2,7 @@
 use Contica\eFacturacion\Facturador;
 require __DIR__ . '/../vendor/autoload.php';
 
-    $invoicer = new Facturador(['contra' => 'localhost']);
+    $facturador = new Facturador(['contra' => 'localhost']);
     $cert = fopen(__DIR__ . '/cert.p12', 'r');
     $company = [
         'nombre' => 'Soluciones Induso',
@@ -14,4 +14,4 @@ require __DIR__ . '/../vendor/autoload.php';
         'id_ambiente' => 1
     ];
     fclose($cert);
-    $invoicer->guardarEmpresa(603960916, $company);
+    $facturador->guardarEmpresa(603960916, $company);

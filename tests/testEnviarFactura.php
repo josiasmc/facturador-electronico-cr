@@ -7,8 +7,9 @@ require __DIR__ . '/../vendor/autoload.php';
 
 $invoicer = new Facturador(['contra' => 'localhost']);
 
+date_default_timezone_set('America/Costa_Rica');
 $datos = [
-    'NumeroConsecutivo' => '00100001010000000001',
+    'NumeroConsecutivo' => '00100001010000000010',
     'FechaEmision' => date('c'),
     'Emisor' => [
         'Nombre' => 'Soluciones Induso',
@@ -39,7 +40,7 @@ $datos = [
         'CorreoElectronico' => 'smcc@emypeople.net'
     ],
     'CondicionVenta' => '01',
-    'MedioPago' => ['01', '02'],
+    'MedioPago' => '01',
     'DetalleServicio' => [
         'LineaDetalle' => [
             [
@@ -51,10 +52,10 @@ $datos = [
             'Cantidad' => '1',
             'UnidadMedida' => 'Unid',
             'Detalle'  => 'Servicio de programacion',
-            'PrecioUnitario' => '15000.00',
-            'MontoTotal' => '15000.00',
-            'Subtotal' => '15000.00',
-            'MontoTotalLinea' => '15000.00'
+            'PrecioUnitario' => '1.00',
+            'MontoTotal' => '1.00',
+            'SubTotal' => '1.00',
+            'MontoTotalLinea' => '1.00'
             ],
             [
             'NumeroLinea' => '2',
@@ -63,21 +64,21 @@ $datos = [
                 'Codigo' => '010010'
             ],
             'Cantidad' => '2',
-            'UnidadMedida' => 'Hr',
+            'UnidadMedida' => 'h',
             'Detalle'  => 'Servicio al cliente',
-            'PrecioUnitario' => '3000.00',
-            'MontoTotal' => '6000.00',
-            'Subtotal' => '6000.00',
-            'MontoTotalLinea' => '6000.00'
+            'PrecioUnitario' => '1.00',
+            'MontoTotal' => '2.00',
+            'SubTotal' => '2.00',
+            'MontoTotalLinea' => '2.00'
             ]
         ]
         ],
     'ResumenFactura' => [
-        'TotalServiciosExentos' => '21000.00',
-        'TotalExento' => '21000.00',
-        'TotalVenta' => '21000.00',
-        'TotalVentaNeta' => '21000.00',
-        'TotalComprobante' => '21000.00'
+        'TotalServExentos' => '3.00',
+        'TotalExento' => '3.00',
+        'TotalVenta' => '3.00',
+        'TotalVentaNeta' => '3.00',
+        'TotalComprobante' => '3.00'
     ],
     'Normativa' => [
         'NumeroResolucion' => 'DGT-R-48-2016',
@@ -87,11 +88,9 @@ $datos = [
 
 try {
     
-    $xml = $invoicer->enviarComprobante($datos);
+    $cl = $invoicer->enviarComprobante($datos);
+    echo "Clave generada: $cl";
 
-    $file = fopen(__DIR__ . "/factura.xml", "w");
-    fwrite($file, $xml);
-    fclose($file);
 } catch (\GuzzleHttp\Exception\ClientException $err)  {
     $file = fopen(__DIR__ . "/error.html", "w");
     fwrite($file, $err);

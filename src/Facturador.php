@@ -121,8 +121,6 @@ class Facturador
     public function enviarComprobante($datos)
     {
         $comprobante = new Comprobante($this->container, $datos);
-        return $comprobante->enviar();
-
-        
+        return $comprobante->enviar();       
     }
 }

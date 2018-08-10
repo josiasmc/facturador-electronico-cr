@@ -83,7 +83,7 @@ class Token
     /**
      * Funcion para coger un token nuevo de Hacienda
      * 
-     * @return String El access_token que recibe o False si falla
+     * @return string El access_token que recibe o False si falla
      */
     private function _newToken()
     {
@@ -112,7 +112,7 @@ class Token
      * 
      * @param string $refreshToken El refresh_token para enviar
      * 
-     * @return string El access_token devuelto
+     * @return string|bool El access_token devuelto, false si falla
      */
     private function _refreshToken($refreshToken)
     {
@@ -132,14 +132,15 @@ class Token
                 return $accessToken;
             }
         }
+        return false;
     }
 
     /**
      * Funcion que guarda el token recibido de Hacienda
      * 
-     * @param String $body El cuerpo devuelto de Hacienda
+     * @param string $body El cuerpo devuelto de Hacienda
      * 
-     * @return String El access_token en el cuerpo
+     * @return string El access_token en el cuerpo
      */
     private function _saveToken($body)
     {

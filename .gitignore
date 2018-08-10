@@ -5,3 +5,5 @@ build/*
 *.odt
 *.odt#
 *.pdf
+*.xml
+*.p12
