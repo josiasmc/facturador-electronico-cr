@@ -5,11 +5,11 @@ use Contica\eFacturacion\Facturador;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$invoicer = new Facturador(['contra' => 'localhost']);
+$invoicer = new Facturador(['contra' => 'josi14.cr']);
 
 date_default_timezone_set('America/Costa_Rica');
 $datos = [
-    'NumeroConsecutivo' => '00100001010000000010',
+    'NumeroConsecutivo' => '00100001010000000012',
     'FechaEmision' => date('c'),
     'Emisor' => [
         'Nombre' => 'Soluciones Induso',
@@ -52,10 +52,10 @@ $datos = [
             'Cantidad' => '1',
             'UnidadMedida' => 'Unid',
             'Detalle'  => 'Servicio de programacion',
-            'PrecioUnitario' => '1.00',
-            'MontoTotal' => '1.00',
-            'SubTotal' => '1.00',
-            'MontoTotalLinea' => '1.00'
+            'PrecioUnitario' => '15000.00',
+            'MontoTotal' => '15000.00',
+            'SubTotal' => '15000.00',
+            'MontoTotalLinea' => '15000.00'
             ],
             [
             'NumeroLinea' => '2',
@@ -66,19 +66,19 @@ $datos = [
             'Cantidad' => '2',
             'UnidadMedida' => 'h',
             'Detalle'  => 'Servicio al cliente',
-            'PrecioUnitario' => '1.00',
-            'MontoTotal' => '2.00',
-            'SubTotal' => '2.00',
-            'MontoTotalLinea' => '2.00'
+            'PrecioUnitario' => '1000.00',
+            'MontoTotal' => '2000.00',
+            'SubTotal' => '2000.00',
+            'MontoTotalLinea' => '2000.00'
             ]
         ]
         ],
     'ResumenFactura' => [
-        'TotalServExentos' => '3.00',
-        'TotalExento' => '3.00',
-        'TotalVenta' => '3.00',
-        'TotalVentaNeta' => '3.00',
-        'TotalComprobante' => '3.00'
+        'TotalServExentos' => '17000.00',
+        'TotalExento' => '17000.00',
+        'TotalVenta' => '17000.00',
+        'TotalVentaNeta' => '17000.00',
+        'TotalComprobante' => '17000.00'
     ],
     'Normativa' => [
         'NumeroResolucion' => 'DGT-R-48-2016',

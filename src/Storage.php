@@ -51,7 +51,7 @@ class Storage
 
 
         //Check for database existence
-        $db_version = 2; // Set to version required by component
+        $db_version = 1; // Set to version required by component
         if ($db->select_db($db_name)) {
             //Check for up to date database version
             Storage::_versionCheck($db, $db_version); 
@@ -72,7 +72,7 @@ class Storage
      */
     private function _createDB($conn, $db_name, $db_version)
     {
-        $sql = "CREATE DATABASE $db_name CHARACTER SET utf16 COLLATE utf16_spanish_ci";
+        $sql = "CREATE DATABASE $db_name CHARACTER SET utf16 COLLATE utf16_general_ci";
         if (!$conn->query($sql)) {
             throw new \Exception("Error creando base de datos: $conn->error");
         }
@@ -81,9 +81,9 @@ class Storage
             'CREATE TABLE `Ambientes` (
                 `Id_ambiente` int(1) NOT NULL,
                 `Nombre` varchar(25) NOT NULL,
-                `Client_id` varchar(16) NOT NULL,
-                `URI_IDP` varchar(100) NOT NULL,
-                `URI_API` varchar(100) NOT NULL)',
+                `Client_id` varchar(55) NOT NULL,
+                `URI_IDP` varchar(255) NOT NULL,
+                `URI_API` varchar(255) NOT NULL)',
             "INSERT INTO `Ambientes` 
                 (`Id_ambiente`, `Nombre`, `Client_id`, `URI_IDP`, `URI_API`) 
                 VALUES
@@ -94,14 +94,13 @@ class Storage
                 'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token', 
                 'https://api.comprobanteselectronicos.go.cr/recepcion/v1/')",
             'CREATE TABLE `Emisiones` (
-                `Clave` int(50) NOT NULL,
-                `Cedula` int(12) NOT NULL,
+                `Clave` varchar(55) NOT NULL,
+                `Cedula` varchar(55) NOT NULL,
                 `Estado` int(1) DEFAULT NULL,
-                `JSON` blob,
                 `xmlFirmado` blob,
-                `Confirmacion` blob)',
+                `Respuesta` blob)',
             'CREATE TABLE `Empresas` (
-                `Cedula` int(12) NOT NULL,
+                `Cedula` varchar(55) NOT NULL,
                 `Nombre` varchar(50) DEFAULT NULL,
                 `Email` varchar(50) DEFAULT NULL,
                 `Certificado_mh` blob,
@@ -110,7 +109,7 @@ class Storage
                 `Pin_mh` varchar(512) DEFAULT NULL,
                 `Id_ambiente_mh` int(1) DEFAULT NULL)',
             'CREATE TABLE `Tokens` (
-                `Client_id` int(12) NOT NULL,
+                `Client_id` varchar(55) NOT NULL,
                 `access_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
                 `expires_in` INT(16) NOT NULL,
                 `refresh_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
@@ -156,13 +155,7 @@ class Storage
         }
 
         $versions = [
-            1 => "UPDATE Version SET $db_version",
-            2 => [
-            "UPDATE Version SET `db_version` = $db_version",
-            "ALTER TABLE `Tokens` CHANGE `expires_in` `expires_in` INT(16) NOT NULL",
-            "ALTER TABLE `Tokens` CHANGE `refresh_expires_in` 
-            `refresh_expires_in` INT(16) NOT NULL"
-            ]
+            1 => "UPDATE Version SET $db_version"
         ];
         foreach ($versions as $ver => $statements) {
             if ($ver > $version) {

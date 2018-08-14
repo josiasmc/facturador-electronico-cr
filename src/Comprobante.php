@@ -95,6 +95,7 @@ class Comprobante
                 'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
                 'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
             ],
+            'callbackUrl' => $this->container['callbackUrl'],
             'comprobanteXml' => base64_encode($xml)
         ];
         $token = new Token($this->id, $this->container);
@@ -149,7 +150,7 @@ class Comprobante
         /*$file = fopen(__DIR__ . "/inv.xml", "w");
         fwrite($file, $xml);
         fclose($file);*/
-        $xmldb = $db->real_escape_string($xml);
+        $xmldb = $db->real_escape_string(gzcompress($xml));
         $cl = $this->clave;
         $sql = "INSERT INTO Emisiones ".
         "(Clave, Cedula, Estado, xmlFirmado) VALUES ".

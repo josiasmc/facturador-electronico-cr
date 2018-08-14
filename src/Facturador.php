@@ -19,6 +19,7 @@
 namespace Contica\eFacturacion;
 
 use \Defuse\Crypto\Key;
+use function GuzzleHttp\json_decode;
 
 /**
  * El proveedor de facturacion
@@ -50,7 +51,8 @@ class Facturador
             'llave' => 
                 'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060'.
                 'a652843681d9f8ca53746679318aab2e54a9d4c2485f4'.
-                '6441709de9f0c4aa494dc31acf3d64484f88089296ebe6'
+                '6441709de9f0c4aa494dc31acf3d64484f88089296ebe6',
+            'callbackUrl' => ''
             ], $settings
         );
         // Crear conexion a la base de datos
@@ -63,7 +65,8 @@ class Facturador
         // Initialize the container
         $this->container = [
             'cryptoKey' => Key::loadFromAsciiSafeString($config['llave']),
-            'db' => $db
+            'db' => $db,
+            'callbackUrl' => $config['callbackUrl']
         ];
     }
 
@@ -122,5 +125,52 @@ class Facturador
     {
         $comprobante = new Comprobante($this->container, $datos);
         return $comprobante->enviar();       
+    }
+
+    /**
+     * Procesar mensaje Hacienda
+     * 
+     * @param string $cuerpo El cuerpo del mensaje de Hacienda
+     * 
+     * @return array Estado del comprobante enviado
+     */
+    public function procesarMensajeHacienda($cuerpo)
+    {
+        $db = $this->container['db'];
+        $cuerpo = json_decode($cuerpo, true);
+        $ind_estado = $cuerpo['ind-estado'];
+        $clave = $cuerpo['clave'];
+        if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
+            // Procesar el xml enviado
+            $xml = base64_decode($cuerpo['respuesta-xml']);
+            $file = fopen(__DIR__ . "/respuesta.xml", "w");
+            fwrite($file, $xml);
+            fclose($file);
+            $xmldb = $db->real_escape_string(gzcompress($xml));
+            $sql = "UPDATE Emisiones SET Estado=3, Respuesta='$xmldb' WHERE Clave='$clave'";
+            $db->query($sql);
+            $mensaje = 'Vacio';
+            return [
+                'Estado' => $ind_estado,
+                'Mensaje' => $mensaje,
+                'Xml' => $xml
+            ];
+        }
+        return [
+            'Estado' => $ind_estado,
+            'Mensaje' => ''
+        ];
+    }
+
+    /**
+     * Procesar recibo de comprobante
+     * 
+     * @param string $xml El xml para procesar
+     * 
+     * @return bool El resultado
+     */
+    public function recibirComprobante($xml)
+    {
+
     }
 }

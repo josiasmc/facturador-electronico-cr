@@ -4,7 +4,7 @@ $config = [
     'dominio' => 'localhost',
     'base_datos' => 'e_facturacion',
     'usuario' => 'root',
-    'contraseña' => 'localhost',
+    'contraseña' => 'josi14.cr',
     'cryptoKey' => implode(
         [
         'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060',

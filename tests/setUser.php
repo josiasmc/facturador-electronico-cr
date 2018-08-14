@@ -2,7 +2,7 @@
 use Contica\eFacturacion\Facturador;
 require __DIR__ . '/../vendor/autoload.php';
 
-    $facturador = new Facturador(['contra' => 'localhost']);
+    $facturador = new Facturador(['contra' => 'josi14.cr']);
     $cert = fopen(__DIR__ . '/cert.p12', 'r');
     $company = [
         'nombre' => 'Soluciones Induso',
