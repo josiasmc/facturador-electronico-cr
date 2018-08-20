@@ -54,7 +54,7 @@ class Empresas
     public function exists($id)
     {
         $db = $this->container['db'];
-        $sql = 'SELECT Cedula FROM Empresas WHERE Cedula=' . $id;
+        $sql = "SELECT Cedula FROM Empresas WHERE Cedula='$id'";
         return $db->query($sql)->num_rows == 1;
     }
 
@@ -105,7 +105,7 @@ class Empresas
             $values .= $key . '=' . $this->_prepValue($value) . ', ';
         }
         $values = rtrim($values, ', ');
-        $sql = "UPDATE Empresas SET $values WHERE Cedula=$id";
+        $sql = "UPDATE Empresas SET $values WHERE Cedula='$id'";
         if ($db->query($sql) === true) {
             return true;
         } else {

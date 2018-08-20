@@ -19,7 +19,8 @@
 namespace Contica\eFacturacion;
 
 use \Defuse\Crypto\Key;
-use function GuzzleHttp\json_decode;
+use \Sabre\Xml\Service;
+use \GuzzleHttp\Client;
 
 /**
  * El proveedor de facturacion
@@ -143,16 +144,20 @@ class Facturador
         if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
             // Procesar el xml enviado
             $xml = base64_decode($cuerpo['respuesta-xml']);
-            $file = fopen(__DIR__ . "/respuesta.xml", "w");
+            /*$file = fopen(__DIR__ . "/respuesta.xml", "w");
             fwrite($file, $xml);
-            fclose($file);
-            $xmldb = $db->real_escape_string(gzcompress($xml));
-            $sql = "UPDATE Emisiones SET Estado=3, Respuesta='$xmldb' WHERE Clave='$clave'";
+            fclose($file);*/
+            $estado = ($ind_estado == 'aceptado') ? 3 : 4; //aceptado : rechazado
+            $xmldb = $db->real_escape_string(gzcompress($xml, 9));
+            $sql = "UPDATE Emisiones 
+                    SET Estado=$estado, Respuesta='$xmldb' 
+                    WHERE Clave='$clave'";
             $db->query($sql);
-            $mensaje = 'Vacio';
+            $parsedXml = $this->analizarComprobante($xml);
             return [
+                'Clave' => $parsedXml['Clave'],
                 'Estado' => $ind_estado,
-                'Mensaje' => $mensaje,
+                'Mensaje' => $parsedXml['DetalleMensaje'],
                 'Xml' => $xml
             ];
         }
@@ -163,14 +168,136 @@ class Facturador
     }
 
     /**
-     * Procesar recibo de comprobante
+     * Revisar estado de comprobante
      * 
-     * @param string $xml El xml para procesar
+     * @param string $clave La clave del comprobante
      * 
-     * @return bool El resultado
+     * @return int El estado (1:pendiente, 2:enviado, 3: aceptado, 4:rechazado)
      */
-    public function recibirComprobante($xml)
-    {
+    function estadoComprobante($clave) 
+    {   
+        $db = $this->container['db'];
+        $sql = "SELECT Estado
+                FROM Emisiones
+                WHERE Clave='$clave'";
+        $res = $db->query($sql)->fetch_assoc();
+        return $res['Estado'];
+    }
 
+    /**
+     * Interrogar estado de comprobante en Hacienda
+     * 
+     * @param string $clave La clave del comprobante a interrogar
+     * 
+     * @return array El resultado
+     */
+    public function interrogarRespuesta($clave)
+    {
+        $db = $this->container['db'];
+        $estado = $this->estadoComprobante($clave);
+        if ($estado > 2) {
+            //ya tenemos la respuesta de Hacienda en la base de datos
+            $estado = ($estado == 3) ? 'aceptado' : 'rechazado'; //aceptado : rechazado
+            $sql = "SELECT Respuesta
+            FROM Emisiones
+            WHERE Clave='$clave'";
+            $xml = gzuncompress($db->query($sql)->fetch_assoc()['Respuesta']);
+            $data = $this->analizarComprobante($xml);
+            return [
+                'Clave' => $data['Clave'],
+                'Estado' => $estado,
+                'Mensaje' => $data['DetalleMensaje'],
+                'Xml' => $xml
+            ];
+        } else if ($estado == 2) {
+            // vamos a interrogar a Hacienda
+            $id = ltrim(substr($clave, 9, 12), '0');
+            $token = new Token($id, $this->container);
+            $token = $token->getToken();
+            $client = new Client(
+                ['headers' => ['Authorization' => 'bearer ' . $token]]
+            );
+            $sql  = 'SELECT Ambientes.URI_API '.
+                        'FROM Ambientes '.
+                        'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
+                        'WHERE Empresas.Cedula=' . $id;
+            $url = $db->query($sql)->fetch_assoc()['URI_API'] . "recepcion/$clave";
+
+            $res = $client->request('GET', $url);
+            if ($res->getStatusCode() == 200) {
+                $body = $res->getBody();
+                return $facturador->procesarMensajeHacienda($body);
+            } else {
+                // ocurrio un error
+                return false;
+            }
+            
+        } else if ($estado == 1) {
+            // ni siquiera se ha enviado
+            return [
+                'Estado' => 'pendiente',
+                'Mensaje' => ''
+            ];
+        }
+
+    }
+
+    /**
+     * Analizar xml de comprobante
+     * 
+     * @param string $xml El xml a analizar
+     * 
+     * @return array La informacion del xml
+     */
+    public function analizarComprobante($xml)
+    {
+        //Eliminar la firma
+        $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
+
+        //Coger el elemento root del comprobante
+        $s = stripos($xml, '<', 10) + 1;
+        $e = stripos($xml, ' ', $s);
+        $root = substr($xml, $s, $e - $s);
+
+        //Coger el namespace del comprobante
+        $s = stripos($xml, 'xmlns=') + 7;
+        $e = stripos($xml, '"', $s+10);
+        global $ns;
+        $ns = substr($xml, $s, $e - $s);
+        $xmlns = '{'.$ns.'}';
+
+        $service = new Service;
+
+        $f_keyValue = function (\Sabre\Xml\Reader $reader) {
+            return \Sabre\Xml\Deserializer\keyValue($reader, $GLOBALS['ns']);
+        };
+        $f_repeatingElements = function (\Sabre\Xml\Reader $reader) {
+            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['ns']);
+        };
+
+        $service->elementMap = [
+            $xmlns.$root => $f_keyValue,
+            $xmlns.'Emisor' => $f_keyValue,
+            $xmlns.'Receptor' => $f_keyValue,
+            $xmlns.'Identificacion'  => $f_keyValue,
+            $xmlns.'Ubicacion' => $f_keyValue,
+            $xmlns.'Telefono' => $f_keyValue,
+            $xmlns.'Telefono' => $f_keyValue,
+            $xmlns.'ResumenFactura' => $f_keyValue,
+            $xmlns.'LineaDetalle' => $f_keyValue,
+            $xmlns.'Codigo' => $f_keyValue,
+            $xmlns.'Normativa' => $f_keyValue,
+            $xmlns.'Otros' => $f_keyValue
+        ];
+        if (substr_count($xml, '<MedioPago>') > 1) {
+            $service->elementMap[$xmlns.'MedioPago'] = $f_repeatingElements;
+        }
+
+        if (substr_count($xml, '<LineaDetalle>') > 1) {
+            $service->elementMap[$xmlns.'DetalleServicio'] = $f_repeatingElements;
+        } else {
+            $service->elementMap[$xmlns.'DetalleServicio'] = $f_keyValue;
+        }
+        return $service->parse($xml);
     }
 }
