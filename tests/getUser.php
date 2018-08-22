@@ -1,7 +1,8 @@
 <?php
 use Contica\eFacturacion\Facturador;
 require __DIR__ . '/../vendor/autoload.php';
-$invoicer = new Facturador(['password' => 'localhost']);
+require 'configs.php';
+$invoicer = new Facturador(['password' => $databasePassword]);
 $company = $invoicer->cogerEmpresa(901230456);
 var_dump($company);
 $cert = $invoicer->cogerCertificadoEmpresa(901230456);

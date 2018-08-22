@@ -1,10 +1,11 @@
 <?php
 use \Defuse\Crypto\Key;
+require "configs.php";
 $config = [
     'dominio' => 'localhost',
     'base_datos' => 'e_facturacion',
-    'usuario' => 'root',
-    'contraseña' => 'josi14.cr',
+    'usuario' => $databaseUser,
+    'contraseña' => $databasePassword,
     'cryptoKey' => implode(
         [
         'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060',

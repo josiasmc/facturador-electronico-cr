@@ -7,3 +7,4 @@ build/*
 *.pdf
 *.xml
 *.p12
+tests/configs.php

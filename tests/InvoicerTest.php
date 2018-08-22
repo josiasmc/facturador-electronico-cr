@@ -5,6 +5,7 @@ namespace Contica\eFacturacion;
 use \Defuse\Crypto\Key;
 use  \PHPUnit\Framework\TestCase;
 
+require 'configs.php';
 class InvoicerTest extends TestCase
 {
     /**
@@ -12,7 +13,7 @@ class InvoicerTest extends TestCase
      */
     public function testSetsDefaultContainerWithConstructor()
     {
-        $invoicer = new Facturador(['password' => 'localhost']);
+        $invoicer = new Facturador(['password' => $databasePassword]);
         $config = [
             'servidor' => 'localhost',
             'base_datos' => 'e_invoicing',

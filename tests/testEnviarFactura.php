@@ -4,8 +4,9 @@
 use Contica\eFacturacion\Facturador;
 
 require __DIR__ . '/../vendor/autoload.php';
+require 'configs.php';
 
-$invoicer = new Facturador(['contra' => 'josi14.cr']);
+$invoicer = new Facturador(['contra' => $databasePassword]);
 
 date_default_timezone_set('America/Costa_Rica');
 $datos = [
