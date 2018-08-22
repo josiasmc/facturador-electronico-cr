@@ -97,12 +97,17 @@ class Token
                 'password' => $data['Password_mh']
             ];
             $client = new Client();
-            $response = $client->post($uri, ['form_params' => $params]);
-            if ($response->getStatusCode()==200) {
-                $body = $response->getBody()->__toString();
-                $accessToken = $this->_saveToken($body);
-                return $accessToken;
+            try {
+                $response = $client->post($uri, ['form_params' => $params]);
+                if ($response->getStatusCode()==200) {
+                    $body = $response->getBody()->__toString();
+                    $accessToken = $this->_saveToken($body);
+                    return $accessToken;
+                }
+            } catch (\GuzzleHttp\Exception $e) {
+                return false;
             }
+            
         }
         return false;
     }

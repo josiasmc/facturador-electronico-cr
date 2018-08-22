@@ -226,7 +226,7 @@ class Facturador
             $res = $client->request('GET', $url);
             if ($res->getStatusCode() == 200) {
                 $body = $res->getBody();
-                return $facturador->procesarMensajeHacienda($body);
+                return $this->procesarMensajeHacienda($body);
             } else {
                 // ocurrio un error
                 return false;
@@ -240,6 +240,23 @@ class Facturador
             ];
         }
 
+    }
+
+    /**
+     * Coger el xml de un comprobante
+     * 
+     * @param string $clave La clave del comprobante
+     * 
+     * @return string El contenido del archivo xml
+     */
+    public function cogerXmlComprobante($clave) 
+    {
+        $db = $this->container['db'];
+        $sql = "SELECT xmlFirmado
+        FROM Emisiones
+        WHERE Clave='$clave'";
+        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlFirmado']);
+        return $xml;
     }
 
     /**

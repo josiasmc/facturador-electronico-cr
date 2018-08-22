@@ -94,10 +94,14 @@ class Comprobante
             'receptor' => [
                 'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
                 'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
-            ],
-            'callbackUrl' => $this->container['callbackUrl'],
-            'comprobanteXml' => base64_encode($xml)
-        ];
+            ]
+         ];
+         $callbackUrl = $this->container['callbackUrl'];
+        if ($callbackUrl) {
+             $post['callbackUrl'] = $callbackUrl;
+        }
+        $post['comprobanteXml'] = base64_encode($xml);
+       
         $token = new Token($this->id, $this->container);
         $token = $token->getToken();
         $estado = 1; //Pendiente
@@ -117,7 +121,7 @@ class Comprobante
             try {
                 $res = $client->post($uri, ['json' => $post]);
                 $code = $res->getStatusCode();
-                echo "\nRespuesta: $code\n";
+                //echo "\nRespuesta: $code\n";
                 if ($code == 201 || $code == 202) {
                     $this->estado = 2; //enviado
                 }
@@ -126,11 +130,11 @@ class Comprobante
                 // cuando ocurre este error, el comprobante se guarda 
                 // de forma normal, para ser enviado en un futuro.
                 $res = $e->getResponse();
-                echo Psr7\str($res);
+                //echo Psr7\str($res);
                 //echo 'Respuesta: ' . $res->getStatusCode()."\n";
             } catch (Exception\ConnectException $e) {
                 // a connection problem
-                echo 'Error de conexion';
+                //echo 'Error de conexion';
                 $this->situacion = 3; //sin internet
             };
         } else {
@@ -157,7 +161,7 @@ class Comprobante
         "(" . $cl . ", " . $this->id . ", ". 
         $this->estado . ", '" . $xmldb . "')";
         $db->query($sql);
-        echo $db->error."\n";
+        //echo $db->error."\n";
         return $this->clave;
     }
 
