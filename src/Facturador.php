@@ -139,7 +139,10 @@ class Facturador
     {
         $db = $this->container['db'];
         $cuerpo = json_decode($cuerpo, true);
-        $ind_estado = $cuerpo['ind-estado'];
+        $ind_estado = str_lower($cuerpo['ind-estado']);
+        if (($ind_estado == 'recibido') || ($ind_estado == 'procesando')) {
+            $ind_estado = 'enviado';
+        }
         $clave = $cuerpo['clave'];
         if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
             // Procesar el xml enviado

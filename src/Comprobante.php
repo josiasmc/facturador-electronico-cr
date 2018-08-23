@@ -90,13 +90,15 @@ class Comprobante
             'emisor' => [
                 'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
                 'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
-            ],
-            'receptor' => [
+            ]
+        ];
+        if (isset($datos['Receptor'])) {
+            $post['receptor'] = [
                 'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
                 'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
-            ]
-         ];
-         $callbackUrl = $this->container['callbackUrl'];
+            ];
+        }
+        $callbackUrl = $this->container['callbackUrl'];
         if ($callbackUrl) {
              $post['callbackUrl'] = $callbackUrl;
         }
