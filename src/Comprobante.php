@@ -49,7 +49,7 @@ class Comprobante
      * @param array $container El contenedor con los ajustes
      * @param array $datos     Los datos del comprobante a crear
      */
-    public function __construct($container, $datos)
+    public function __construct($container, $datos, $sinInternet = false)
     {
         $empresas = new Empresas($container);
         date_default_timezone_set('America/Costa_Rica');
@@ -62,8 +62,16 @@ class Comprobante
         $this->container['id'] = $id;
         $this->consecutivo = $datos['NumeroConsecutivo'];
         $this->tipo = substr($this->consecutivo, 8, 2);
-        $this->situacion = 1; //Normal
-        //TO DO: Codigo para detectar factura por contingencia
+        if ($sinInternet) {
+            $this->situacion = 3; //Sin internet
+        } else {
+            $this->situacion = 1; //Normal
+        }        
+        if (isset($datos['InformacionReferencia'])) {
+            if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
+                $this->situacion = 2; //Contingencia
+            }
+        }
         $this->estado = 1; //Pendiente
         $clave = $this->_generarClave();
         //echo 'Clave: ' . $clave . "\n";//-----------------
@@ -137,21 +145,10 @@ class Comprobante
             } catch (Exception\ConnectException $e) {
                 // a connection problem
                 //echo 'Error de conexion';
-                $this->situacion = 3; //sin internet
+                //$this->situacion = 3; //sin internet
             };
-        } else {
-            $this->situacion = 3; //sin internet (no pudimos conseguir token)
         }
-
-        if ($this->situacion == 3) {
-            // No hay internet, tenemos que cambiarle la clave
-            $cl = $this->_generarClave();
-            $datos['Clave'] = $cl;
-            $this->clave = $cl;
-            $this->datos = $datos;
-            $xml = $creadorXml->crearXml($datos);
-        }
-                
+     
         // Guardar el comprobante
         /*$file = fopen(__DIR__ . "/inv.xml", "w");
         fwrite($file, $xml);
