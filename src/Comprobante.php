@@ -40,43 +40,56 @@ class Comprobante
     protected $tipo; // tipo de comprobante
     protected $datos; // la informacion del comprobante
     protected $situacion; // 1=Normal, 2=Contingencia, 3=Sin Internet
-    protected $estado; // el estado: 1=Pendiente, 2=Enviado, 3=Confirmado
-                        //4=Aceptado, 5=AceptadoParcialmente, 6=Rechazado
+    protected $estado; // el estado: 1=Pendiente, 2=Enviado, 3=Aceptado 4=Rechazado 5=Error
 
     /**
      * Constructor for the Comprobantes
      * 
-     * @param array $container El contenedor con los ajustes
-     * @param array $datos     Los datos del comprobante a crear
+     * @param array $container   El contenedor con los ajustes
+     * @param array $datos       Los datos del comprobante a crear
+     * @param bool  $sinInternet True para un comprobante que se genero sin conexion
      */
     public function __construct($container, $datos, $sinInternet = false)
     {
-        $empresas = new Empresas($container);
         date_default_timezone_set('America/Costa_Rica');
-        $id = $datos['Emisor']['Identificacion']['Numero'];
+        if (isset($datos['NumeroConsecutivoReceptor'])) {
+            //Este es un mensaje de confirmacion
+            $id = ltrim($datos['NumeroCedulaReceptor'], '0');
+            $clave = $datos['Clave'];
+            $consecutivo = $datos['NumeroConsecutivoReceptor'];
+        } else {
+            //Es una factura
+            $id = $datos['Emisor']['Identificacion']['Numero'];
+            $consecutivo = $datos['NumeroConsecutivo'];
+        }
+        
+        $empresas = new Empresas($container);
         if (!$empresas->exists($id)) {
             throw new \Exception('El emisor no esta registrado');
         };
         $this->id = $id;
         $this->container = $container;
         $this->container['id'] = $id;
-        $this->consecutivo = $datos['NumeroConsecutivo'];
-        $this->tipo = substr($this->consecutivo, 8, 2);
+        $this->consecutivo = $consecutivo;
+        $this->tipo = substr($consecutivo, 8, 2);
         if ($sinInternet) {
             $this->situacion = 3; //Sin internet
         } else {
             $this->situacion = 1; //Normal
-        }        
+        }
+        if (!isset($datos['Clave'])) {
+            $clave = $this->_generarClave();
+            $datos = array_merge(['Clave' => $clave], $datos);
+        }
+        $this->datos = $datos;    
         if (isset($datos['InformacionReferencia'])) {
             if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
                 $this->situacion = 2; //Contingencia
             }
         }
         $this->estado = 1; //Pendiente
-        $clave = $this->_generarClave();
         //echo 'Clave: ' . $clave . "\n";//-----------------
         $this->clave = $clave;
-        $this->datos = array_merge(['Clave' => $clave], $datos);
     }
 
     /**
@@ -91,36 +104,62 @@ class Comprobante
         $creadorXml = new CreadorXML($this->container);
         $xml = $creadorXml->crearXml($datos);
 
-        // Enviar el comprobante a Hacienda
-        $post = [
-            'clave' => $datos['Clave'],
-            'fecha' => $datos['FechaEmision'],
-            'emisor' => [
-                'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
-                'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
-            ]
-        ];
-        if (isset($datos['Receptor'])) {
-            $post['receptor'] = [
-                'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
-                'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
+        if ($this->tipo <= 4) {
+            //Cogemos datos para una factura
+            $post = [
+                'clave' => $datos['Clave'],
+                'fecha' => $datos['FechaEmision'],
+                'emisor' => [
+                    'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
+                    'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
+                ]
+            ];
+            if (isset($datos['Receptor']['Identificacion'])) {
+                $post['receptor'] = [
+                    'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
+                    'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
+                ];
+            }
+        } else {
+            //Cogemos datos para un mensaje receptor
+            $xmlData = $this->container['xmlData'];
+            $receptor = $this->container['receptor'];
+            $tipoId = str_pad($receptor['tipo'], 2, '0', STR_PAD_LEFT);
+            $post = [
+                'clave' => $xmlData['Clave'],
+                'fecha' => $xmlData['FechaEmision'],
+                'emisor' => [
+                    'tipoIdentificacion' => $xmlData['Emisor']['Identificacion']['Tipo'],
+                    'numeroIdentificacion' => $xmlData['Emisor']['Identificacion']['Numero']
+                ],
+                'receptor' => [
+                    'tipoIdentificacion' => $tipoId,
+                    'numeroIdentificacion' => $receptor['id']
+                ]
             ];
         }
+        // Enviar el comprobante a Hacienda
+        
         $callbackUrl = $this->container['callbackUrl'];
         if ($callbackUrl) {
              $post['callbackUrl'] = $callbackUrl;
+        }
+        if ($this->tipo > 4) {
+            $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
         }
         $post['comprobanteXml'] = base64_encode($xml);
        
         $token = new Token($this->id, $this->container);
         $token = $token->getToken();
         $estado = 1; //Pendiente
+        $msg = '';
+        $json = '';
         if ($token) {
             // Hacer un envio solamente si logramos recibir un token
-            $sql  = 'SELECT Ambientes.URI_API '.
-            'FROM Ambientes '.
-            'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
-            'WHERE Empresas.Cedula = ' . $this->id;
+            $sql  = "SELECT Ambientes.URI_API
+            FROM Ambientes
+            LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
+            WHERE Empresas.Cedula = $this->id";
             $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
             //echo "\nURL: $uri \n";
             $client = new Client(
@@ -138,30 +177,48 @@ class Comprobante
             } catch (Exception\ClientException $e) {
                 // a 400 level exception occured
                 // cuando ocurre este error, el comprobante se guarda 
-                // de forma normal, para ser enviado en un futuro.
+                // con el estado 5 para error, junto con el mensaje en msg.
                 $res = $e->getResponse();
+                $msg = $res->getStatusCode() . ": ";
+                $msg .= json_encode($res->getHeader('X-Error-Cause'));
+                $this->estado = 5; //error
+
                 //echo Psr7\str($res);
-                //echo 'Respuesta: ' . $res->getStatusCode()."\n";
+                //echo 'Respuesta: ' . ."\n";
             } catch (Exception\ConnectException $e) {
                 // a connection problem
-                //echo 'Error de conexion';
-                //$this->situacion = 3; //sin internet
+                // Guardamos la informacion del post para enviarlo posteriormente
+                $json = $db->real_escape_string(json_encode($post));
+                
             };
         }
      
         // Guardar el comprobante
-        /*$file = fopen(__DIR__ . "/inv.xml", "w");
-        fwrite($file, $xml);
+        /*$file = fopen(__DIR__ . "/msg.xml", "w");
+        fwrite($file, $xml . "\nRespuesta: $code\n" . Psr7\str($res));
         fclose($file);*/
         $xmldb = $db->real_escape_string(gzcompress($xml));
         $cl = $this->clave;
-        $sql = "INSERT INTO Emisiones ".
-        "(Clave, Cedula, Estado, xmlFirmado) VALUES ".
-        "(" . $cl . ", " . $this->id . ", ". 
-        $this->estado . ", '" . $xmldb . "')";
-        $db->query($sql);
+        if ($this->tipo <= 4) {
+            //Guardamos la factura
+            $sql = "INSERT INTO Emisiones
+                (Clave, Cedula, Estado, msg, xmlFirmado, Respuesta) VALUES
+                ('$cl', '$this->id', '$this->estado', '$msg', '$xmldb', '$json')";
+                $db->query($sql);
+            return $cl;
+        } else {
+            //Guardamos el mensaje de confirmacion
+            $sql = "UPDATE Recepciones
+                        SET xmlConfirmacion='$xmldb',
+                            Estado='$this->estado',
+                            msg='$msg',
+                            Respuesta='$json'
+                        WHERE Clave='$cl'";
+            $db->query($sql);
+            return $this->estado;
+        }
         //echo $db->error."\n";
-        return $this->clave;
+        
     }
 
     /**

@@ -51,7 +51,7 @@ class Storage
 
 
         //Check for database existence
-        $db_version = 1; // Set to version required by component
+        $db_version = 3; // Set to version required by component
         if ($db->select_db($db_name)) {
             //Check for up to date database version
             Storage::_versionCheck($db, $db_version); 
@@ -97,8 +97,19 @@ class Storage
                 `Clave` varchar(55) NOT NULL,
                 `Cedula` varchar(55) NOT NULL,
                 `Estado` int(1) DEFAULT NULL,
+                `msg` VARCHAR(255) NULL,
                 `xmlFirmado` blob,
                 `Respuesta` blob)',
+            'CREATE TABLE `Recepciones` (
+                `Clave` VARCHAR(55) NOT NULL ,
+                `Cedula` VARCHAR(12) NOT NULL ,
+                `Estado` INT(2) NOT NULL ,
+                `msg` VARCHAR(255) NULL
+                `xmlRecibido` BLOB NULL ,
+                `xmlConfirmacion` BLOB NULL ,
+                `Respuesta` BLOB NULL ,
+                PRIMARY KEY (`Clave`),
+                INDEX `Cedula` (`Cedula`))',
             'CREATE TABLE `Empresas` (
                 `Cedula` varchar(55) NOT NULL,
                 `Nombre` varchar(50) DEFAULT NULL,
@@ -155,7 +166,25 @@ class Storage
         }
 
         $versions = [
-            1 => "UPDATE Version SET $db_version"
+            2 => [
+                "UPDATE Version SET `db_version`=$db_version",
+                'CREATE TABLE `Recepciones` (
+                    `Clave` VARCHAR(55) NOT NULL ,
+                    `Cedula` VARCHAR(12) NOT NULL ,
+                    `Estado` INT(2) NOT NULL ,
+                    `xmlRecibido` BLOB NULL ,
+                    `xmlConfirmacion` BLOB NULL ,
+                    `Respuesta` BLOB NULL ,
+                    PRIMARY KEY (`Clave`),
+                    INDEX `Cedula` (`Cedula`))'
+            ],
+            3=> [
+                "UPDATE Version SET `db_version`=$db_version",
+                "ALTER TABLE `Emisiones`
+                    ADD `msg` VARCHAR(255) NULL AFTER `Estado`;",
+                "ALTER TABLE `Recepciones`
+                    ADD `msg` VARCHAR(255) NULL AFTER `Estado`;"
+            ]
         ];
         foreach ($versions as $ver => $statements) {
             if ($ver > $version) {

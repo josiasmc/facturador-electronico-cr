@@ -139,20 +139,26 @@ class Facturador
     {
         $db = $this->container['db'];
         $cuerpo = json_decode($cuerpo, true);
-        $ind_estado = str_lower($cuerpo['ind-estado']);
+        $ind_estado = strtolower($cuerpo['ind-estado']);
         if (($ind_estado == 'recibido') || ($ind_estado == 'procesando')) {
             $ind_estado = 'enviado';
         }
-        $clave = $cuerpo['clave'];
+        $clave = substr($cuerpo['clave'], 0, 50);
+        $idReceptor = ltrim($cuerpo['NumeroCedulaReceptor'], '0');
+        if ($this->estadoComprobanteRecibido($clave, $idReceptor) === false) {
+            $table = 'Emisiones';
+        } else {
+            $table = 'Recepciones';
+        }
         if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
             // Procesar el xml enviado
             $xml = base64_decode($cuerpo['respuesta-xml']);
-            /*$file = fopen(__DIR__ . "/respuesta.xml", "w");
+            $file = fopen(__DIR__ . "/respuesta.xml", "w");
             fwrite($file, $xml);
-            fclose($file);*/
+            fclose($file);
             $estado = ($ind_estado == 'aceptado') ? 3 : 4; //aceptado : rechazado
             $xmldb = $db->real_escape_string(gzcompress($xml, 9));
-            $sql = "UPDATE Emisiones 
+            $sql = "UPDATE $table 
                     SET Estado=$estado, Respuesta='$xmldb' 
                     WHERE Clave='$clave'";
             $db->query($sql);
@@ -171,6 +177,41 @@ class Facturador
     }
 
     /**
+     * Recibir xml de un proveedor
+     * 
+     * @param string $receptor        [tipo, id] del receptor del comprobante
+     * @param int    $mensajeReceptor El consecutivo del mensaje
+     * @param string $xmlInput        El xml para confirmar
+     * 
+     * @return int|bool El estado (-1: existe, 1:pendiente, 2:enviado)
+     */
+    public function recibirXml($receptor, $mensajeReceptor, $xmlInput)
+    {
+        $db = $this->container['db'];
+        $clave = $mensajeReceptor['Clave'];
+        if ($this->estadoComprobanteRecibido($clave) === false) {            
+            $estado = 1; //pendiente
+            $id = $receptor['id'];
+
+            //Guardamos el xml
+            $xmldb = $db->real_escape_string(gzcompress($xmlInput));
+            $sql = "INSERT INTO Recepciones
+                        (Clave, Cedula, Estado, xmlRecibido) 
+                    VALUES
+                        ('$clave', '$id', '$estado', '$xmldb')";
+            $r = $db->query($sql);
+            //Enviamos el mensaje de respuesta
+            $container = $this->container;
+            $container['receptor'] = $receptor; //Se necesita para mensaje Receptor
+            $container['xmlData'] = $this->analizarComprobante($xmlInput);
+            $comprobante = new Comprobante($container, $mensajeReceptor);
+            return $comprobante->enviar(); //El estado, si fue exitoso, o false
+        } else {
+            return -1; //ya existe
+        }
+    }
+
+    /**
      * Revisar estado de comprobante
      * 
      * @param string $clave La clave del comprobante
@@ -183,61 +224,129 @@ class Facturador
         $sql = "SELECT Estado
                 FROM Emisiones
                 WHERE Clave='$clave'";
-        $res = $db->query($sql)->fetch_assoc();
-        return $res['Estado'];
+        $res = $db->query($sql);
+        if ($res->num_rows > 0) {
+            $res = $res->fetch_assoc();
+            return $res['Estado'];
+        } else {
+            return false; //La clave no existe en la base de datos
+        }
+    }
+
+    /**
+     * Revisar estado de comprobante
+     * 
+     * @param string $clave  La clave del comprobante
+     * @param string $cedula Opcional, la cedula de la empresa del emisor
+     * 
+     * @return int El estado (1:pendiente, 2:enviado, 3: aceptado, 4:rechazado)
+     */
+    function estadoComprobanteRecibido($clave, $cedula = false) 
+    {   
+        $db = $this->container['db'];
+        $sql = "SELECT Estado
+                FROM Recepciones
+                WHERE Clave='$clave'";
+        if ($cedula) {
+            $sql .= " AND Cedula='$cedula'";
+        }
+        $res = $db->query($sql);
+        if ($res->num_rows > 0) {
+            $res = $res->fetch_assoc();
+            return $res['Estado'];
+        } else {
+            return false; //La clave no existe en la base de datos
+        }
+        
+        
     }
 
     /**
      * Interrogar estado de comprobante en Hacienda
      * 
-     * @param string $clave La clave del comprobante a interrogar
+     * @param string $clave La clave del comprobante a interrogar 
+     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
      * 
      * @return array El resultado
      */
-    public function interrogarRespuesta($clave)
+    public function interrogarRespuesta($clave, $lugar = 2)
     {
         $db = $this->container['db'];
-        $estado = $this->estadoComprobante($clave);
-        if ($estado > 2) {
+        $consecutivo = false;
+        if ($lugar == 1) {
+            $estado = $this->estadoComprobante($clave);
+            $table = 'Emisiones';
+        } else {
+            $table = 'Recepciones';
+            $estado = $this->estadoComprobanteRecibido($clave);
+            $xml = $this->cogerXmlConfirmacion($clave);
+            $consecutivo = $this->analizarComprobante($xml)['NumeroConsecutivoReceptor'];
+        }
+        if ($estado === false) {
+            return false;
+        }
+        if ($estado == 5) {
+            $sql = "SELECT msg
+            FROM $table
+            WHERE Clave='$clave'";
+            $msg = $db->query($sql)->fetch_assoc()['msg'];
+            return [
+                'Clave' => $data['Clave'],
+                'Estado' => $estado,
+                'Mensaje' => $msg,
+            ];
+        } else if ($estado > 2) {
             //ya tenemos la respuesta de Hacienda en la base de datos
             $estado = ($estado == 3) ? 'aceptado' : 'rechazado'; //aceptado : rechazado
             $sql = "SELECT Respuesta
-            FROM Emisiones
+            FROM $table
             WHERE Clave='$clave'";
             $xml = gzuncompress($db->query($sql)->fetch_assoc()['Respuesta']);
             $data = $this->analizarComprobante($xml);
             return [
                 'Clave' => $data['Clave'],
                 'Estado' => $estado,
-                'Mensaje' => $data['DetalleMensaje'],
-                'Xml' => $xml
+                'Mensaje' => $data['DetalleMensaje']
             ];
         } else if ($estado == 2) {
             // vamos a interrogar a Hacienda
-            $id = ltrim(substr($clave, 9, 12), '0');
+            $sql = "SELECT Cedula FROM $table WHERE Clave='$clave'";
+            $id = $db->query($sql)->fetch_assoc()['Cedula'];
             $token = new Token($id, $this->container);
             $token = $token->getToken();
-            $client = new Client(
-                ['headers' => ['Authorization' => 'bearer ' . $token]]
-            );
-            $sql  = 'SELECT Ambientes.URI_API '.
-                        'FROM Ambientes '.
-                        'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
-                        'WHERE Empresas.Cedula=' . $id;
-            $url = $db->query($sql)->fetch_assoc()['URI_API'] . "recepcion/$clave";
-
-            $res = $client->request('GET', $url);
-            if ($res->getStatusCode() == 200) {
-                $body = $res->getBody();
-                return $this->procesarMensajeHacienda($body);
-            } else {
-                // ocurrio un error
-                return false;
+            if ($token) {
+                $client = new Client(
+                    ['headers' => ['Authorization' => 'bearer ' . $token]]
+                );
+                $sql  = 'SELECT Ambientes.URI_API '.
+                            'FROM Ambientes '.
+                            'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
+                            'WHERE Empresas.Cedula=' . $id;
+                $url = $db->query($sql)->fetch_assoc()['URI_API'] . "recepcion/$clave";
+                if ($consecutivo) {
+                    $url .= "-$consecutivo";
+                }
+                $res = $client->request('GET', $url);
+                if ($res->getStatusCode() == 200) {
+                    $body = $res->getBody();
+                    return $this->procesarMensajeHacienda($body);
+                } else {
+                    // ocurrio un error
+                    return false;
+                }
             }
-            
+            // No se pudo actualizar
+            $estados = ['pendiente', 'enviado', 'aceptado', 'rechazado', 'error'];
+            $estado = $estados[$estado - 1];
+            return [
+                'Clave' => $clave,
+                'Estado' => $estado,
+                'Mensaje' => ''
+            ];
         } else if ($estado == 1) {
             // ni siquiera se ha enviado
             return [
+                'Clave' => $data['Clave'],
                 'Estado' => 'pendiente',
                 'Mensaje' => ''
             ];
@@ -260,6 +369,98 @@ class Facturador
         WHERE Clave='$clave'";
         $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlFirmado']);
         return $xml;
+    }
+
+    /**
+     * Coger el xml de confirmacion de un comprobante recibido
+     * 
+     * @param string $clave La clave del comprobante recibido
+     * 
+     * @return string El contenido del archivo xml de confirmacion
+     */
+    public function cogerXmlConfirmacion($clave) 
+    {
+        $db = $this->container['db'];
+        $sql = "SELECT xmlConfirmacion
+        FROM Recepciones
+        WHERE Clave='$clave'";
+        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlConfirmacion']);
+        return $xml;
+    }
+
+    /**
+     * Enviar los comprobantes pendientes en la base de datos
+     * 
+     * @return bool true si todos estan enviados
+     */
+    public function enviarPendientes() 
+    {
+        $db = $this->container['db'];
+        $tables = ['Emisiones', 'Recepciones'];
+
+        foreach ($tables as $table) {
+            $sql = "SELECT Clave, Cedula, Respuesta
+                    FROM $table
+                    WHERE Estado='1'
+                    LIMIT 1";
+            do {
+                $res = $db->query($sql);
+                if ($res->num_rows > 0) {
+                    $row = true;
+                    $r = $res->fetch_assoc();
+                    //Volvemos a enviar el comprobante
+                    $clave = $r['Clave'];
+                    $post = json_decode($r['Respuesta']);//El post que fue guardado
+                    $id = $r['Cedula'];
+                    $estado = 1;
+                    $token = new Token($id, $this->container);
+                    $token = $token->getToken();
+                    $msg = '';
+                    if ($token) {
+                        // Hacer un envio solamente si logramos recibir un token
+                        $sql  = "SELECT Ambientes.URI_API
+                        FROM Ambientes
+                        LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
+                        WHERE Empresas.Cedula = $id";
+                        $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
+                        $client = new Client(
+                            ['headers' => ['Authorization' => 'bearer ' . $token]]
+                        );
+                        try {
+                            $res = $client->post($uri, ['json' => $post]);
+                            $code = $res->getStatusCode();
+                            if ($code == 201 || $code == 202) {
+                                $estado = 2; //enviado
+                            }
+                        } catch (Exception\ClientException $e) {
+                            // a 400 level exception occured
+                            // cuando ocurre este error, el comprobante se guarda 
+                            // con el estado 5 para error, junto con el mensaje en msg.
+                            $res = $e->getResponse();
+                            $msg = $res->getStatusCode() . ": ";
+                            $msg .= $res->getHeader('X-Error-Cause');
+                            $estado = 5; //error
+                        } catch (Exception\ConnectException $e) {
+                            //No se pudo enviar
+                            $row = false;                            
+                        };
+                    }
+                    //Guardar el resultado cuando se ha actualizado
+                    if ($estado > 1) {
+                        $sql = "UPDATE $table SET
+                                Estado='$estado',
+                                msg='$msg',
+                                Respuesta=''";
+                        $db->query($sql);
+                    } else {
+                        $row = false;
+                    }
+                } else {
+                    $row = false;
+                }
+            } while ($row === true);
+        }
+        return true;
     }
 
     /**

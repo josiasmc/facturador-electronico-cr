@@ -70,7 +70,14 @@ class CreadorXML
     {
 
         // Revisar el tipo de comprobante suministrado
-        $tipo = substr($datos['NumeroConsecutivo'], 8, 2);
+        if (isset($datos['NumeroConsecutivoReceptor'])) {
+            //Este es un mensaje de confirmacion
+            $consecutivo = $datos['NumeroConsecutivoReceptor'];
+        } else {
+            //Es una factura
+            $consecutivo = $datos['NumeroConsecutivo'];
+        }
+        $tipo = substr($consecutivo, 8, 2);
 
         switch ($tipo) {
         // Factura electronica
@@ -91,15 +98,15 @@ class CreadorXML
             break;
         // Confirmacion de aceptacion del comprobante electronico
         case '05':
-            return $this->_crearAceptacion();
+            return $this->_crearMensajeReceptor($datos);
             break;
         // Confirmacion de aceptacion parcial del comprobante electronico
         case '06':
-            return $this->_crearAceptacionParcial();
+            return $this->_crearMensajeReceptor($datos);
             break;
         // Confirmacion de rechazo del comprobante electronico
         case '07':
-            return $this->_crearRechazo();
+            return $this->_crearMensajeReceptor($datos);
             break;
         // Quien sabe que mandaron
         default:
@@ -192,6 +199,29 @@ class CreadorXML
         ];
         
         $xml = $xmlService->write('{' . $ns . '}' . 'TiqueteElectronico', $datos);
+        return $this->_firmarXml($xml, $ns);
+    }
+
+
+    /**
+     * Creador del XML firmado para mensaje de confirmacion
+     * 
+     * @param array $datos Los datos del mensaje
+     * 
+     * @return string El contenido del XML firmado
+     */
+    private function _crearMensajeReceptor($datos)
+    {
+        $ns = 'https://tribunet.hacienda.go.cr/'.
+            'docs/esquemas/2017/v4.2/mensajeReceptor';
+        $xmlService = new XmlService;
+        $xmlService->namespaceMap = [
+            'http://www.w3.org/2001/XMLSchema' => 'xsd',
+            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
+            $ns => ''
+        ];
+        
+        $xml = $xmlService->write('{' . $ns . '}' . 'MensajeReceptor', $datos);
         return $this->_firmarXml($xml, $ns);
     }
 
