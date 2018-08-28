@@ -292,7 +292,7 @@ class Facturador
             $msg = $db->query($sql)->fetch_assoc()['msg'];
             return [
                 'Clave' => $data['Clave'],
-                'Estado' => $estado,
+                'Estado' => 'error',
                 'Mensaje' => $msg,
             ];
         } else if ($estado > 2) {
