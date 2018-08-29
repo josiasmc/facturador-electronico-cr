@@ -144,7 +144,7 @@ class Facturador
             $ind_estado = 'enviado';
         }
         $clave = substr($cuerpo['clave'], 0, 50);
-        if ($this->estadoComprobanteRecibido($clave) === false) {
+        if ($this->estadoComprobanteRecibido($clave) == false) {
             $table = 'Emisiones';
         } else {
             $table = 'Recepciones';
@@ -152,9 +152,9 @@ class Facturador
         if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
             // Procesar el xml enviado
             $xml = base64_decode($cuerpo['respuesta-xml']);
-            $file = fopen(__DIR__ . "/respuesta.xml", "w");
+            /*$file = fopen(__DIR__ . "/respuesta.xml", "w");
             fwrite($file, $xml);
-            fclose($file);
+            fclose($file);*/
             $estado = ($ind_estado == 'aceptado') ? 3 : 4; //aceptado : rechazado
             $xmldb = $db->real_escape_string(gzcompress($xml, 9));
             $sql = "UPDATE $table 
@@ -224,7 +224,7 @@ class Facturador
                 FROM Emisiones
                 WHERE Clave='$clave'";
         $res = $db->query($sql);
-        if ($res->num_rows > 0) {
+        if ($res) {
             $res = $res->fetch_assoc();
             return $res['Estado'];
         } else {
@@ -246,7 +246,7 @@ class Facturador
                 FROM Recepciones
                 WHERE Clave='$clave'";
         $res = $db->query($sql);
-        if ($res->num_rows > 0) {
+        if ($res) {
             $res = $res->fetch_assoc();
             return $res['Estado'];
         } else {
@@ -264,18 +264,20 @@ class Facturador
      * 
      * @return array El resultado
      */
-    public function interrogarRespuesta($clave, $lugar = 2)
+    public function interrogarRespuesta($clave, $lugar)
     {
         $db = $this->container['db'];
         $consecutivo = false;
         if ($lugar == 1) {
             $estado = $this->estadoComprobante($clave);
             $table = 'Emisiones';
-        } else {
+        } else if ($lugar == 2) {
             $table = 'Recepciones';
             $estado = $this->estadoComprobanteRecibido($clave);
             $xml = $this->cogerXmlConfirmacion($clave);
             $consecutivo = $this->analizarComprobante($xml)['NumeroConsecutivoReceptor'];
+        } else {
+            return false;
         }
         if ($estado === false) {
             return false;
