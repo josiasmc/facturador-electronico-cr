@@ -393,9 +393,9 @@ class Facturador
      */
     public function cogerXmlRespuesta($clave, $lugar) 
     {
-        if ($lugar = 1) {
+        if ($lugar == 1) {
             $table = 'Emisiones';
-        } else if ($lugar = 2) {
+        } else if ($lugar == 2) {
             $table = 'Recepciones';
         } else {
             return false;
