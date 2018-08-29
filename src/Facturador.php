@@ -144,8 +144,7 @@ class Facturador
             $ind_estado = 'enviado';
         }
         $clave = substr($cuerpo['clave'], 0, 50);
-        $idReceptor = ltrim($cuerpo['NumeroCedulaReceptor'], '0');
-        if ($this->estadoComprobanteRecibido($clave, $idReceptor) === false) {
+        if ($this->estadoComprobanteRecibido($clave) === false) {
             $table = 'Emisiones';
         } else {
             $table = 'Recepciones';
@@ -236,20 +235,16 @@ class Facturador
     /**
      * Revisar estado de comprobante
      * 
-     * @param string $clave  La clave del comprobante
-     * @param string $cedula Opcional, la cedula de la empresa del emisor
+     * @param string $clave La clave del comprobante
      * 
      * @return int El estado (1:pendiente, 2:enviado, 3: aceptado, 4:rechazado)
      */
-    function estadoComprobanteRecibido($clave, $cedula = false) 
+    function estadoComprobanteRecibido($clave) 
     {   
         $db = $this->container['db'];
         $sql = "SELECT Estado
                 FROM Recepciones
                 WHERE Clave='$clave'";
-        if ($cedula) {
-            $sql .= " AND Cedula='$cedula'";
-        }
         $res = $db->query($sql);
         if ($res->num_rows > 0) {
             $res = $res->fetch_assoc();
@@ -385,6 +380,31 @@ class Facturador
         FROM Recepciones
         WHERE Clave='$clave'";
         $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlConfirmacion']);
+        return $xml;
+    }
+
+    /**
+     * Coger el xml de respuesta de un comprobante
+     * 
+     * @param string $clave La clave del comprobante
+     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
+     * 
+     * @return string El contenido del mensaje de respuesta
+     */
+    public function cogerXmlRespuesta($clave, $lugar) 
+    {
+        if ($lugar = 1) {
+            $table = 'Emisiones';
+        } else if ($lugar = 2) {
+            $table = 'Recepciones';
+        } else {
+            return false;
+        }
+        $db = $this->container['db'];
+        $sql = "SELECT Respuesta
+        FROM $table
+        WHERE Clave='$clave'";
+        $xml = gzuncompress($db->query($sql)->fetch_assoc()['Respuesta']);
         return $xml;
     }
 
