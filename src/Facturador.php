@@ -53,7 +53,8 @@ class Facturador
                 'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060'.
                 'a652843681d9f8ca53746679318aab2e54a9d4c2485f4'.
                 '6441709de9f0c4aa494dc31acf3d64484f88089296ebe6',
-            'callbackUrl' => ''
+            'callbackUrl' => '',
+            'callbackUrlRecepcion' => ''
             ], $settings
         );
         // Crear conexion a la base de datos
@@ -67,7 +68,8 @@ class Facturador
         $this->container = [
             'cryptoKey' => Key::loadFromAsciiSafeString($config['llave']),
             'db' => $db,
-            'callbackUrl' => $config['callbackUrl']
+            'callbackUrl' => $config['callbackUrl'],
+            'callbackUrlRecepcion' => $config['callbackUrlRecepcion']
         ];
     }
 
@@ -427,7 +429,7 @@ class Facturador
                     LIMIT 1";
             do {
                 $res = $db->query($sql);
-                if ($res->num_rows > 0) {
+                if ($res) {
                     $row = true;
                     $r = $res->fetch_assoc();
                     //Volvemos a enviar el comprobante

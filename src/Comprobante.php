@@ -146,6 +146,10 @@ class Comprobante
         }
         if ($this->tipo > 4) {
             $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
+            $callbackUrlRecepcion = $this->container['callbackUrlRecepcion'];
+            if ($callbackUrlRecepcion) {
+                $post['callbackUrl'] = $callbackUrlRecepcion;
+            }
         }
         $post['comprobanteXml'] = base64_encode($xml);
        
