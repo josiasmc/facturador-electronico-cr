@@ -195,6 +195,9 @@ class Comprobante
                 $json = $db->real_escape_string(json_encode($post));
                 
             };
+        } else {
+            //guardamos el post para poder hacerlo despues
+            $json = $db->real_escape_string(json_encode($post));
         }
      
         // Guardar el comprobante

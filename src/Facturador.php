@@ -462,7 +462,7 @@ class Facturador
                             // con el estado 5 para error, junto con el mensaje en msg.
                             $res = $e->getResponse();
                             $msg = $res->getStatusCode() . ": ";
-                            $msg .= $res->getHeader('X-Error-Cause');
+                            $msg .= $res->getHeader('X-Error-Cause')[0];
                             $estado = 5; //error
                         } catch (Exception\ConnectException $e) {
                             //No se pudo enviar
@@ -474,12 +474,15 @@ class Facturador
                         $sql = "UPDATE $table SET
                                 Estado='$estado',
                                 msg='$msg',
-                                Respuesta=''";
+                                Respuesta=''
+                                WHERE Clave=$clave";
                         $db->query($sql);
                     } else {
+                        //No se pudo enviar. Dejamos de tratar.
                         $row = false;
                     }
                 } else {
+                    //No hay mas pendientes
                     $row = false;
                 }
             } while ($row === true);

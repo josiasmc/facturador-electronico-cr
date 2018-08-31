@@ -62,7 +62,7 @@ class Token
         //Revisar si hay una entrada en la base de datos
         $sql = "SELECT * FROM Tokens WHERE Client_id=$id";
         $result = $db->query($sql);
-        if ($result->num_rows > 0) {
+        if ($result) {
             //Revisar si el token es valido
             $row = $result->fetch_assoc();
             if ($this->_validToken($row['expires_in'])) {
@@ -104,8 +104,12 @@ class Token
                     $accessToken = $this->_saveToken($body);
                     return $accessToken;
                 }
-            } catch (\GuzzleHttp\Exception $e) {
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                //a 400 error
                 return false;
+            } catch (\GuzzleHttp\Exception\ConnectException $e) {
+                // a connection problem
+                return false;                
             }
             
         }
@@ -131,11 +135,24 @@ class Token
             ];
             $client = new Client();
             $response = $client->post($uri, ['form_params' => $params]);
-            if ($response->getStatusCode()==200) {
-                $body = $response->getBody()->__toString();
-                $accessToken = $this->_saveToken($body);
-                return $accessToken;
+            try {
+                if ($response->getStatusCode()==200) {
+                    $body = $response->getBody()->__toString();
+                    $accessToken = $this->_saveToken($body);
+                    return $accessToken;
+                }
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                //a 400 error
+                //lets erase the token and try to get a new one
+                $db = $this->db;
+                $sql = "DELETE FROM Tokens
+                        WHERE Client_id=$this->user_id";
+                return $this->_newToken();
+            } catch (\GuzzleHttp\Exception\ConnectException $e) {
+                // a connection problem
+                return false;                
             }
+            
         }
         return false;
     }
@@ -186,8 +203,6 @@ class Token
         if ($result) {
             return $data['access_token'];
         }
-        echo $sql . "\n";
-        echo $db->error;
         return false;
     }
 
