@@ -134,8 +134,8 @@ class Token
                 'refresh_token' => $refreshToken
             ];
             $client = new Client();
-            $response = $client->post($uri, ['form_params' => $params]);
             try {
+                $response = $client->post($uri, ['form_params' => $params]);
                 if ($response->getStatusCode()==200) {
                     $body = $response->getBody()->__toString();
                     $accessToken = $this->_saveToken($body);
