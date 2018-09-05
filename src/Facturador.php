@@ -352,7 +352,7 @@ class Facturador
             }
             $estado = array('pendiente', 'enviado', 'aceptado', 'rechazado', 'error')[$estado - 1];
             return [
-                'Clave' => $data['Clave'],
+                'Clave' => $clave,
                 'Estado' => $estado,
                 'Mensaje' => ''
             ];
