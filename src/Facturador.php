@@ -344,9 +344,16 @@ class Facturador
             ];
         } else if ($estado == 1) {
             // ni siquiera se ha enviado
+            $this->enviarPendientes();
+            if ($lugar == 1) {
+                $estado = $this->estadoComprobante($clave);
+            } else if ($lugar == 2) {
+                $estado = $this->estadoComprobanteRecibido($clave);
+            }
+            $estado = array('pendiente', 'enviado', 'aceptado', 'rechazado', 'error')[$estado - 1];
             return [
                 'Clave' => $data['Clave'],
-                'Estado' => 'pendiente',
+                'Estado' => $estado,
                 'Mensaje' => ''
             ];
         }
