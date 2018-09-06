@@ -190,7 +190,7 @@ class Facturador
     {
         $db = $this->container['db'];
         $clave = $mensajeReceptor['Clave'];
-        if ($this->estadoComprobanteRecibido($clave) === false) {            
+        if ($this->estadoComprobanteRecibido($clave) == false) {            
             $estado = 1; //pendiente
             $id = $receptor['id'];
 
