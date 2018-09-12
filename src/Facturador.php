@@ -325,14 +325,25 @@ class Facturador
                 if ($consecutivo) {
                     $url .= "-$consecutivo";
                 }
-                $res = $client->request('GET', $url);
-                if ($res->getStatusCode() == 200) {
-                    $body = $res->getBody();
-                    return $this->procesarMensajeHacienda($body);
-                } else {
-                    // ocurrio un error
-                    return false;
+                try {
+                    $res = $client->request('GET', $url);
+                    if ($res->getStatusCode() == 200) {
+                        $body = $res->getBody();
+                        return $this->procesarMensajeHacienda($body);
+                    } else {
+                        // ocurrio un error
+                        return false;
+                    }
+                } catch (\GuzzleHttp\Exception\ClientException $e) {
+                    $res = $e->getResponse();
+                    $mensaje = $res->getHeader('X-Error-Cause')[0];
+                    $estado = 5;
+                    $sql = "UPDATE $table 
+                        SET Estado=$estado, msg='$mensaje' 
+                        WHERE Clave='$clave'";
+                    $db->query($sql);
                 }
+                
             }
             // No se pudo actualizar
             $estados = ['pendiente', 'enviado', 'aceptado', 'rechazado', 'error'];
@@ -508,7 +519,8 @@ class Facturador
     {
         //Eliminar la firma
         $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
-
+        $xml = preg_replace("/\<\/Tipo\>[\s]*\<Codigo\>/", '</Tipo><Codi>', $xml);
+        $xml = preg_replace("/\<\/Codigo\>[\s]*\<\/Codigo>/", '</Codi></Codigo>', $xml);
         //Coger el elemento root del comprobante
         $s = stripos($xml, '<', 10) + 1;
         $e = stripos($xml, ' ', $s);
@@ -549,9 +561,11 @@ class Facturador
         }
 
         if (substr_count($xml, '<LineaDetalle>') > 1) {
-            $service->elementMap[$xmlns.'DetalleServicio'] = $f_repeatingElements;
+            $service->elementMap[$xmlns.'DetalleServicio'] = function (\Sabre\Xml\Reader $reader) {
+                return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
+            };
         } else {
-            $service->elementMap[$xmlns.'DetalleServicio'] = $f_keyValue;
+            $service->elementMap[$xmlns.'LineaDetalle'] = $f_keyValue;
         }
         return $service->parse($xml);
     }

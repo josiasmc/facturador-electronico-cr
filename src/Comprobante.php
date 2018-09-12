@@ -189,6 +189,10 @@ class Comprobante
 
                 //echo Psr7\str($res);
                 //echo 'Respuesta: ' . ."\n";
+            } catch (Exception\ServerException $e) {
+                // a 500 level exception occured
+                // Guardamos la informacion del post para enviarlo posteriormente
+                $json = $db->real_escape_string(json_encode($post));
             } catch (Exception\ConnectException $e) {
                 // a connection problem
                 // Guardamos la informacion del post para enviarlo posteriormente
