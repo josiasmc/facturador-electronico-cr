@@ -152,84 +152,103 @@ class Comprobante
             }
         }
         $post['comprobanteXml'] = base64_encode($xml);
-       
-        $token = new Token($this->id, $this->container);
-        $token = $token->getToken();
-        $estado = 1; //Pendiente
-        $msg = '';
-        $json = '';
-        if ($token) {
-            // Hacer un envio solamente si logramos recibir un token
-            $sql  = "SELECT Ambientes.URI_API
-            FROM Ambientes
-            LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
-            WHERE Empresas.Cedula = $this->id";
-            $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
-            //echo "\nURL: $uri \n";
-            $client = new Client(
-                ['headers' => ['Authorization' => 'bearer ' . $token]]
-            );
-            //echo "Listo para hacer el post.\n\n";
 
-            try {
-                $res = $client->post($uri, ['json' => $post]);
-                $code = $res->getStatusCode();
-                //echo "\nRespuesta: $code\n";
-                if ($code == 201 || $code == 202) {
-                    $this->estado = 2; //enviado
-                }
-            } catch (Exception\ClientException $e) {
-                // a 400 level exception occured
-                // cuando ocurre este error, el comprobante se guarda 
-                // con el estado 5 para error, junto con el mensaje en msg.
-                $res = $e->getResponse();
-                $msg = $res->getStatusCode() . ": ";
-                $msg .= json_encode($res->getHeader('X-Error-Cause'));
-                $this->estado = 5; //error
+        if (function_exists('pcntl_fork')) {
+            $pid = pcntl_fork();
+            if ($pid == -1 || $pid == 0) {
+                $send = true;
+            } else {
+                $send = false;
+            }
+        } else {
+            $send = true;
+        }
+        if ($send) {
+            //Somos el proceso nuevo creado o fallo la creacion de proceso nuevo
+            $token = new Token($this->id, $this->container);
+            $token = $token->getToken();
+            $estado = 1; //Pendiente
+            $msg = '';
+            $json = '';
+            if ($token) {
+                // Hacer un envio solamente si logramos recibir un token
+                $sql  = "SELECT Ambientes.URI_API
+                FROM Ambientes
+                LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
+                WHERE Empresas.Cedula = $this->id";
+                $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
+                //echo "\nURL: $uri \n";
+                $client = new Client(
+                    ['headers' => ['Authorization' => 'bearer ' . $token]]
+                );
+                //echo "Listo para hacer el post.\n\n";
 
-                //echo Psr7\str($res);
-                //echo 'Respuesta: ' . ."\n";
-            } catch (Exception\ServerException $e) {
-                // a 500 level exception occured
-                // Guardamos la informacion del post para enviarlo posteriormente
+                try {
+                    $res = $client->post($uri, ['json' => $post]);
+                    $code = $res->getStatusCode();
+                    //echo "\nRespuesta: $code\n";
+                    if ($code == 201 || $code == 202) {
+                        $this->estado = 2; //enviado
+                    }
+                } catch (Exception\ClientException $e) {
+                    // a 400 level exception occured
+                    // cuando ocurre este error, el comprobante se guarda 
+                    // con el estado 5 para error, junto con el mensaje en msg.
+                    $res = $e->getResponse();
+                    $msg = $res->getStatusCode() . ": ";
+                    $msg .= json_encode($res->getHeader('X-Error-Cause'));
+                    $this->estado = 5; //error
+
+                    //echo Psr7\str($res);
+                    //echo 'Respuesta: ' . ."\n";
+                } catch (Exception\ServerException $e) {
+                    // a 500 level exception occured
+                    // Guardamos la informacion del post para enviarlo posteriormente
+                    $json = $db->real_escape_string(json_encode($post));
+                } catch (Exception\ConnectException $e) {
+                    // a connection problem
+                    // Guardamos la informacion del post para enviarlo posteriormente
+                    $json = $db->real_escape_string(json_encode($post));
+                    
+                };
+            } else {
+                //guardamos el post para poder hacerlo despues
                 $json = $db->real_escape_string(json_encode($post));
-            } catch (Exception\ConnectException $e) {
-                // a connection problem
-                // Guardamos la informacion del post para enviarlo posteriormente
-                $json = $db->real_escape_string(json_encode($post));
-                
-            };
-        } else {
-            //guardamos el post para poder hacerlo despues
-            $json = $db->real_escape_string(json_encode($post));
-        }
-     
-        // Guardar el comprobante
-        /*$file = fopen(__DIR__ . "/msg.xml", "w");
-        fwrite($file, $xml . "\nRespuesta: $code\n" . Psr7\str($res));
-        fclose($file);*/
-        $xmldb = $db->real_escape_string(gzcompress($xml));
-        $cl = $this->clave;
-        if ($this->tipo <= 4) {
-            //Guardamos la factura
-            $sql = "INSERT INTO Emisiones
-                (Clave, Cedula, Estado, msg, xmlFirmado, Respuesta) VALUES
-                ('$cl', '$this->id', '$this->estado', '$msg', '$xmldb', '$json')";
-                $db->query($sql);
-            return $cl;
-        } else {
-            //Guardamos el mensaje de confirmacion
-            $sql = "UPDATE Recepciones
-                        SET xmlConfirmacion='$xmldb',
-                            Estado='$this->estado',
-                            msg='$msg',
-                            Respuesta='$json'
-                        WHERE Clave='$cl'";
-            $db->query($sql);
-            return $this->estado;
-        }
-        //echo $db->error."\n";
+            }
         
+            // Guardar el comprobante
+            /*$file = fopen(__DIR__ . "/msg.xml", "w");
+            fwrite($file, $xml . "\nRespuesta: $code\n" . Psr7\str($res));
+            fclose($file);*/
+            $xmldb = $db->real_escape_string(gzcompress($xml));
+            $cl = $this->clave;
+            if ($this->tipo <= 4) {
+                //Guardamos la factura
+                $sql = "INSERT INTO Emisiones
+                    (Clave, Cedula, Estado, msg, xmlFirmado, Respuesta) VALUES
+                    ('$cl', '$this->id', '$this->estado', '$msg', '$xmldb', '$json')";
+                    $db->query($sql);
+                return $cl;
+            } else {
+                //Guardamos el mensaje de confirmacion
+                $sql = "UPDATE Recepciones
+                            SET xmlConfirmacion='$xmldb',
+                                Estado='$this->estado',
+                                msg='$msg',
+                                Respuesta='$json'
+                            WHERE Clave='$cl'";
+                $db->query($sql);
+                return $this->estado;
+            }
+            //echo $db->error."\n";
+        } else {
+            //Somos el proceso padre
+            if ($this->tipo <= 4) {
+                return $this->clave;
+            } else {
+                return $this->estado;
+            }
+        }
     }
 
     /**
