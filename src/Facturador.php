@@ -447,7 +447,7 @@ class Facturador
                     LIMIT 1";
             do {
                 $res = $db->query($sql);
-                if ($res) {
+                if (is_object($res)) {
                     $row = true;
                     $r = $res->fetch_assoc();
                     //Volvemos a enviar el comprobante

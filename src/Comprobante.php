@@ -165,8 +165,9 @@ class Comprobante
         }
         if ($send) {
             //Somos el proceso nuevo creado o fallo la creacion de proceso nuevo
-            $token = new Token($this->id, $this->container);
-            $token = $token->getToken();
+            //$token = new Token($this->id, $this->container);
+            //$token = $token->getToken();
+            $token = false;
             $estado = 1; //Pendiente
             $msg = '';
             $json = '';
