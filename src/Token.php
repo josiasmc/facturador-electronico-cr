@@ -62,7 +62,7 @@ class Token
         //Revisar si hay una entrada en la base de datos
         $sql = "SELECT * FROM Tokens WHERE Client_id=$id";
         $result = $db->query($sql);
-        if ($result) {
+        if ($result->num_rows) {
             //Revisar si el token es valido
             $row = $result->fetch_assoc();
             if ($this->_validToken($row['expires_in'])) {
@@ -126,6 +126,7 @@ class Token
     private function _refreshToken($refreshToken)
     {
         $data = $this->_getAccessDetails();
+        $id = $this->user_id;
         if ($data) {
             $uri = $data['URI_IDP'];
             $params = [
@@ -146,7 +147,7 @@ class Token
                 //lets erase the token and try to get a new one
                 $db = $this->db;
                 $sql = "DELETE FROM Tokens
-                        WHERE Client_id=$this->user_id";
+                        WHERE Client_id=$id";
                 return $this->_newToken();
             } catch (\GuzzleHttp\Exception\ConnectException $e) {
                 // a connection problem
@@ -175,35 +176,23 @@ class Token
         $now = date_timestamp_get(date_create());
         //Revisar si ya hay un token guardado
         $sql = "SELECT Client_id FROM Tokens WHERE Client_id=$id";
+        $ac = $data['access_token'];
+        $ei = $data['expires_in'] + $now;
+        $rt = $data['refresh_token'];
+        $rei = $data['refresh_expires_in'] + $now;
         if ($db->query($sql)->num_rows) {
-            $sql = implode(
-                " ",
-                [
-                'UPDATE Tokens SET',
-                'access_token=\'' . $data['access_token'] . "',",
-                'expires_in=' . ($data['expires_in'] + $now) . ',',
-                'refresh_token=\'' . $data['refresh_token'] . "',",
-                'refresh_expires_in=' . ($data['refresh_expires_in'] + $now),
-                "WHERE Client_id=$id"
-                ]
-            );
+            $sql = "UPDATE Tokens SET
+                access_token='$ac',
+                expires_in='$ei',
+                refresh_token='$rt',
+                refresh_expires_in='$rei'
+                WHERE Client_id=$id";
         } else {
-            $sql = implode(
-                ", ",
-                [
-                "INSERT INTO Tokens VALUES($id",
-                "'".$db->real_escape_string($data['access_token'])."'",
-                $data['expires_in'] + $now,
-                "'".$db->real_escape_string($data['refresh_token'])."'",
-                $data['refresh_expires_in'] + $now . ')'
-                ]
-            );
+            $sql = "INSERT INTO Tokens VALUES
+                ('$id', '$ac', '$ei', '$rt', '$rei')";
         }
         $result = $db->query($sql);
-        if ($result) {
-            return $data['access_token'];
-        }
-        return false;
+        return $ac;
     }
 
     /**
@@ -213,15 +202,11 @@ class Token
      */
     private function _getAccessDetails()
     {
-        $sql  = implode(
-            [
-            'SELECT Empresas.Usuario_mh, Empresas.Password_mh, ',
-            'Ambientes.Client_id, Ambientes.URI_IDP ',
-            'FROM Ambientes ',
-            'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente ',
-            'WHERE Empresas.Cedula = ' . $this->user_id,
-            ]
-        );
+        $sql  = 'SELECT e.Usuario_mh, e.Password_mh,
+        a.Client_id, a.URI_IDP 
+        FROM Ambientes a
+        LEFT JOIN Empresas e ON e.Id_ambiente_mh = a.Id_ambiente 
+        WHERE e.Cedula=' . $this->user_id;
         $result = $this->db->query($sql);
         if ($result->num_rows) {
             $data = $result->fetch_assoc();

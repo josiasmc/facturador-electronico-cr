@@ -153,7 +153,7 @@ class Comprobante
         }
         $post['comprobanteXml'] = base64_encode($xml);
 
-        if (function_exists('pcntl_fork')) {
+        if (function_exists('pcntl_fork') && false) {
             $pid = pcntl_fork();
             if ($pid == -1 || $pid == 0) {
                 $send = true;

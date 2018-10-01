@@ -406,6 +406,31 @@ class Facturador
     }
 
     /**
+     * Coger el msg de un comprobante
+     * 
+     * @param string $clave La clave del comprobante recibido
+     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
+     * 
+     * @return string El contenido del archivo xml de confirmacion
+     */
+    public function cogerMsg($clave, $lugar) 
+    {
+        if ($lugar == 1) {
+            $table = 'Emisiones';
+        } else if ($lugar == 2) {
+            $table = 'Recepciones';
+        } else {
+            return false;
+        }
+        $db = $this->container['db'];
+        $sql = "SELECT msg
+        FROM $table
+        WHERE Clave='$clave'";
+        $msg = $db->query($sql)->fetch_assoc()['msg'];
+        return $msg;
+    }
+
+    /**
      * Coger el xml de respuesta de un comprobante
      * 
      * @param string $clave La clave del comprobante
@@ -441,23 +466,23 @@ class Facturador
         $tables = ['Emisiones', 'Recepciones'];
 
         foreach ($tables as $table) {
-            $sql = "SELECT Clave, Cedula, Respuesta
+            $sqlr = "SELECT Clave, Cedula, Respuesta
                     FROM $table
                     WHERE Estado='1'
                     LIMIT 1";
             do {
-                $res = $db->query($sql);
+                $res = $db->query($sqlr);
                 if (is_object($res)) {
                     $row = true;
                     $r = $res->fetch_assoc();
                     //Volvemos a enviar el comprobante
                     $clave = $r['Clave'];
-                    $post = json_decode($r['Respuesta']);//El post que fue guardado
+                    $post = json_decode($r['Respuesta'], true);//El post que fue guardado
                     $id = $r['Cedula'];
                     $estado = 1;
-                    $token = new Token($id, $this->container);
-                    $token = $token->getToken();
-                    $msg = '';
+                    $tokens = new Token($id, $this->container);
+                    $token = $tokens->getToken();
+                    $msg = 'pendiente';
                     if ($token) {
                         // Hacer un envio solamente si logramos recibir un token
                         $sql  = "SELECT Ambientes.URI_API
@@ -473,8 +498,11 @@ class Facturador
                             $code = $res->getStatusCode();
                             if ($code == 201 || $code == 202) {
                                 $estado = 2; //enviado
+                                $msg = '';
+                            } else {
+                                $msg = "Codigo: " . $code;
                             }
-                        } catch (Exception\ClientException $e) {
+                        } catch (\GuzzleHttp\Exception\ClientException $e) {
                             // a 400 level exception occured
                             // cuando ocurre este error, el comprobante se guarda 
                             // con el estado 5 para error, junto con el mensaje en msg.
@@ -482,20 +510,22 @@ class Facturador
                             $msg = $res->getStatusCode() . ": ";
                             $msg .= $res->getHeader('X-Error-Cause')[0];
                             $estado = 5; //error
-                        } catch (Exception\ConnectException $e) {
+                        } catch (\GuzzleHttp\Exception\ConnectException $e) {
                             //No se pudo enviar
-                            $row = false;                            
+                            $msg = "Sin conexión.";
+                            $row = false;                           
                         };
+                    } else {
+                        $row = false;
+                        $msg = "Fallo en coger Token";
                     }
                     //Guardar el resultado cuando se ha actualizado
-                    if ($estado > 1) {
-                        $sql = "UPDATE $table SET
-                                Estado='$estado',
-                                msg='$msg',
-                                Respuesta=''
-                                WHERE Clave=$clave";
-                        $db->query($sql);
-                    } else {
+                    $sql = "UPDATE $table SET
+                        Estado='$estado',
+                        msg='$msg'
+                        WHERE Clave='$clave'";
+                    $db->query($sql);
+                    if ($estado == 1) {
                         //No se pudo enviar. Dejamos de tratar.
                         $row = false;
                     }
@@ -503,7 +533,7 @@ class Facturador
                     //No hay mas pendientes
                     $row = false;
                 }
-            } while ($row === true);
+            } while ($row == true);
         }
         return true;
     }
