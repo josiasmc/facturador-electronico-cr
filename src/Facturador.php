@@ -458,14 +458,16 @@ class Facturador
     /**
      * Enviar los comprobantes pendientes en la base de datos
      * 
-     * @return bool true si todos estan enviados
+     * @return array Clave => lugar con todos los que se enviaron
      */
     public function enviarPendientes() 
     {
         $db = $this->container['db'];
         $tables = ['Emisiones', 'Recepciones'];
+        $enviados = [];
 
         foreach ($tables as $table) {
+            $lugar = $table = "Emisiones" ? 1 : 2;
             $sqlr = "SELECT Clave, Cedula, Respuesta
                     FROM $table
                     WHERE Estado='1'
@@ -499,6 +501,7 @@ class Facturador
                             if ($code == 201 || $code == 202) {
                                 $estado = 2; //enviado
                                 $msg = '';
+                                $enviados[$clave] = $lugar;
                             } else {
                                 $msg = "Codigo: " . $code;
                             }
@@ -535,7 +538,7 @@ class Facturador
                 }
             } while ($row == true);
         }
-        return true;
+        return $enviados;
     }
 
     /**
