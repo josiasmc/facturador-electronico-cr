@@ -467,16 +467,16 @@ class Facturador
         $enviados = [];
 
         foreach ($tables as $table) {
-            $lugar = $table = "Emisiones" ? 1 : 2;
+            $lugar = $table == "Emisiones" ? 1 : 2;
             $sqlr = "SELECT Clave, Cedula, Respuesta
                     FROM $table
                     WHERE Estado='1'
                     LIMIT 1";
             do {
-                $res = $db->query($sqlr);
-                if (is_object($res)) {
+                $query = $db->query($sqlr);
+                if (is_object($query)) {
                     $row = true;
-                    $r = $res->fetch_assoc();
+                    $r = $query->fetch_assoc();
                     //Volvemos a enviar el comprobante
                     $clave = $r['Clave'];
                     $post = json_decode($r['Respuesta'], true);//El post que fue guardado
