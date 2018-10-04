@@ -277,7 +277,11 @@ class Facturador
             $table = 'Recepciones';
             $estado = $this->estadoComprobanteRecibido($clave);
             $xml = $this->cogerXmlConfirmacion($clave);
-            $consecutivo = $this->analizarComprobante($xml)['NumeroConsecutivoReceptor'];
+            if ($xml) {
+                $consecutivo = $this->analizarComprobante($xml)['NumeroConsecutivoReceptor'];
+            } else {
+                return false;
+            }
         } else {
             return false;
         }
@@ -305,7 +309,8 @@ class Facturador
             return [
                 'Clave' => $data['Clave'],
                 'Estado' => $estado,
-                'Mensaje' => $data['DetalleMensaje']
+                'Mensaje' => $data['DetalleMensaje'],
+                'Xml' => $xml
             ];
         } else if ($estado == 2) {
             // vamos a interrogar a Hacienda
@@ -355,7 +360,7 @@ class Facturador
             ];
         } else if ($estado == 1) {
             // ni siquiera se ha enviado
-            $this->enviarPendientes();
+            $this->enviarPendientes($clave);
             if ($lugar == 1) {
                 $estado = $this->estadoComprobante($clave);
             } else if ($lugar == 2) {
@@ -458,10 +463,18 @@ class Facturador
     /**
      * Enviar los comprobantes pendientes en la base de datos
      * 
+     * @param int $clupd La clave del que queremos actualizar, nada si mandar todo
+     * 
      * @return array Clave => lugar con todos los que se enviaron
      */
-    public function enviarPendientes() 
+    public function enviarPendientes($clupd = false) 
     {
+        if ($clupd) {
+            $select = " AND Clave='$clupd'";
+        } else {
+            $select = '';
+        }
+
         $db = $this->container['db'];
         $tables = ['Emisiones', 'Recepciones'];
         $enviados = [];
@@ -470,7 +483,7 @@ class Facturador
             $lugar = $table == "Emisiones" ? 1 : 2;
             $sqlr = "SELECT Clave, Cedula, Respuesta
                     FROM $table
-                    WHERE Estado='1'
+                    WHERE Estado='1'$select
                     LIMIT 1";
             do {
                 $query = $db->query($sqlr);
@@ -479,14 +492,16 @@ class Facturador
                     $r = $query->fetch_assoc();
                     //Volvemos a enviar el comprobante
                     $clave = $r['Clave'];
-                    $post = json_decode($r['Respuesta'], true);//El post que fue guardado
+                    $savedPost = $r['Respuesta'];
+                    $post = json_decode($savedPost, true);//El post que fue guardado
                     $id = $r['Cedula'];
                     $estado = 1;
                     $tokens = new Token($id, $this->container);
                     $token = $tokens->getToken();
                     $msg = 'pendiente';
-                    if ($token) {
+                    if ($token && $savedPost) {
                         // Hacer un envio solamente si logramos recibir un token
+                        // y el post se habia guardado
                         $sql  = "SELECT Ambientes.URI_API
                         FROM Ambientes
                         LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
@@ -550,6 +565,10 @@ class Facturador
      */
     public function analizarComprobante($xml)
     {
+        if ($xml == false) {
+            //No enviaron nada, entonces solo daria error
+            return false;
+        }
         //Eliminar la firma
         $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
         $xml = preg_replace("/\<\/Tipo\>[\s]*\<Codigo\>/", '</Tipo><Codi>', $xml);
