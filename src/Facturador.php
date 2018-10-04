@@ -342,11 +342,23 @@ class Facturador
                 } catch (\GuzzleHttp\Exception\ClientException $e) {
                     $res = $e->getResponse();
                     $mensaje = $res->getHeader('X-Error-Cause')[0];
-                    $estado = 5;
+                    if (strrpos($msg, "no ") > 1) {
+                        //El comprobante no ha sido enviado
+                        $estado = 1;
+                        $est = "enviado";
+                    } else {
+                        $estado = 5; //error
+                        $est = "error";
+                    }
                     $sql = "UPDATE $table 
                         SET Estado=$estado, msg='$mensaje' 
                         WHERE Clave='$clave'";
                     $db->query($sql);
+                    return [
+                        'Clave' => $data['Clave'],
+                        'Estado' => $est,
+                        'Mensaje' => $mensaje,
+                    ];
                 }
                 
             }
@@ -527,14 +539,19 @@ class Facturador
                             $res = $e->getResponse();
                             $msg = $res->getStatusCode() . ": ";
                             $msg .= $res->getHeader('X-Error-Cause')[0];
-                            $estado = 5; //error
+                            if (strrpos($msg, "ya") > 1) {
+                                //El comprobante ya se habia enviado
+                                $estado = 2;
+                                $msg = '';
+                            } else {
+                                $estado = 5; //error
+                            }
                         } catch (\GuzzleHttp\Exception\ConnectException $e) {
                             //No se pudo enviar
                             $msg = "Sin conexión.";
                             $row = false;                           
                         };
                     } else {
-                        $row = false;
                         $msg = "Fallo en coger Token";
                     }
                     //Guardar el resultado cuando se ha actualizado
@@ -543,8 +560,9 @@ class Facturador
                         msg='$msg'
                         WHERE Clave='$clave'";
                     $db->query($sql);
-                    if ($estado == 1) {
-                        //No se pudo enviar. Dejamos de tratar.
+                    if ($estado == 1 && $token) {
+                        //No se pudo enviar cuando teniamos el token.
+                        //Dejamos de tratar.
                         $row = false;
                     }
                 } else {
