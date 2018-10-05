@@ -550,9 +550,24 @@ class Facturador
                             //No se pudo enviar
                             $msg = "Sin conexión.";
                             $row = false;                           
-                        };
+                        } catch (\GuzzleHttp\Exception\ServerException $e) {
+                            //No se pudo enviar
+                            $msg = "Error de servidor.";
+                            $row = false;                           
+                        }
                     } else {
                         $msg = "Fallo en coger Token";
+                    }
+                    if ($estado == 1) {
+                        if ($token) {
+                            //No se pudo enviar cuando teniamos el token.
+                            //Dejamos de tratar.
+                            $row = false;
+                        } else {
+                            //Error al coger token
+                            //temporalmente lo deshabilitamos
+                            $estado = 9;
+                        }
                     }
                     //Guardar el resultado cuando se ha actualizado
                     $sql = "UPDATE $table SET
@@ -560,14 +575,14 @@ class Facturador
                         msg='$msg'
                         WHERE Clave='$clave'";
                     $db->query($sql);
-                    if ($estado == 1 && $token) {
-                        //No se pudo enviar cuando teniamos el token.
-                        //Dejamos de tratar.
-                        $row = false;
-                    }
                 } else {
                     //No hay mas pendientes
                     $row = false;
+                    //Volvemos los que no se enviaron a pendiente
+                    $sql = "UPDATE $table SET
+                        Estado='1'
+                        WHERE Estado='9'";
+                    $db->query($sql);
                 }
             } while ($row == true);
         }

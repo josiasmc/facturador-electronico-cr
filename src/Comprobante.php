@@ -178,16 +178,13 @@ class Comprobante
                 LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
                 WHERE Empresas.Cedula = $this->id";
                 $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
-                //echo "\nURL: $uri \n";
                 $client = new Client(
                     ['headers' => ['Authorization' => 'bearer ' . $token]]
                 );
-                //echo "Listo para hacer el post.\n\n";
 
                 try {
                     $res = $client->post($uri, ['json' => $post]);
                     $code = $res->getStatusCode();
-                    //echo "\nRespuesta: $code\n";
                     if ($code == 201 || $code == 202) {
                         $this->estado = 2; //enviado
                     }
@@ -198,10 +195,13 @@ class Comprobante
                     $res = $e->getResponse();
                     $msg = $res->getStatusCode() . ": ";
                     $msg .= json_encode($res->getHeader('X-Error-Cause'));
-                    $this->estado = 5; //error
-
-                    //echo Psr7\str($res);
-                    //echo 'Respuesta: ' . ."\n";
+                    if (strrpos($msg, "ya") > 1) {
+                        //El comprobante ya se habia enviado
+                        $this->estado = 2;
+                        $msg = '';
+                    } else {
+                        $this->estado = 5; //error
+                    }
                 } catch (Exception\ServerException $e) {
                     // a 500 level exception occured
                     // Guardamos la informacion del post para enviarlo posteriormente
@@ -210,17 +210,11 @@ class Comprobante
                     // a connection problem
                     // Guardamos la informacion del post para enviarlo posteriormente
                     $json = $db->real_escape_string(json_encode($post));
-                    
-                };
+                }
             } else {
                 //guardamos el post para poder hacerlo despues
                 $json = $db->real_escape_string(json_encode($post));
             }
-        
-            // Guardar el comprobante
-            /*$file = fopen(__DIR__ . "/msg.xml", "w");
-            fwrite($file, $xml . "\nRespuesta: $code\n" . Psr7\str($res));
-            fclose($file);*/
             $xmldb = $db->real_escape_string(gzcompress($xml));
             $cl = $this->clave;
             if ($this->tipo <= 4) {
@@ -241,7 +235,6 @@ class Comprobante
                 $db->query($sql);
                 return $this->estado;
             }
-            //echo $db->error."\n";
         } else {
             //Somos el proceso padre
             if ($this->tipo <= 4) {

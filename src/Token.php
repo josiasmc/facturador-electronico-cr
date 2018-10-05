@@ -62,7 +62,7 @@ class Token
         //Revisar si hay una entrada en la base de datos
         $sql = "SELECT * FROM Tokens WHERE Client_id=$id";
         $result = $db->query($sql);
-        if ($result->num_rows) {
+        if (is_object($result)) {
             //Revisar si el token es valido
             $row = $result->fetch_assoc();
             if ($this->_validToken($row['expires_in'])) {
@@ -104,12 +104,9 @@ class Token
                     $accessToken = $this->_saveToken($body);
                     return $accessToken;
                 }
-            } catch (\GuzzleHttp\Exception\ClientException $e) {
-                //a 400 error
+            } catch (\GuzzleHttp\Exception\TransferException $e) {
+                //handles all exceptions
                 return false;
-            } catch (\GuzzleHttp\Exception\ConnectException $e) {
-                // a connection problem
-                return false;                
             }
             
         }
@@ -180,7 +177,8 @@ class Token
         $ei = $data['expires_in'] + $now;
         $rt = $data['refresh_token'];
         $rei = $data['refresh_expires_in'] + $now;
-        if ($db->query($sql)->num_rows) {
+        $result = $db->query($sql);
+        if (is_object($result)) {
             $sql = "UPDATE Tokens SET
                 access_token='$ac',
                 expires_in='$ei',
@@ -191,7 +189,7 @@ class Token
             $sql = "INSERT INTO Tokens VALUES
                 ('$id', '$ac', '$ei', '$rt', '$rei')";
         }
-        $result = $db->query($sql);
+        $db->query($sql);
         return $ac;
     }
 
@@ -202,13 +200,14 @@ class Token
      */
     private function _getAccessDetails()
     {
-        $sql  = 'SELECT e.Usuario_mh, e.Password_mh,
+        $id = $this->user_id;
+        $sql  = "SELECT e.Usuario_mh, e.Password_mh,
         a.Client_id, a.URI_IDP 
         FROM Ambientes a
         LEFT JOIN Empresas e ON e.Id_ambiente_mh = a.Id_ambiente 
-        WHERE e.Cedula=' . $this->user_id;
+        WHERE e.Cedula='$id'";
         $result = $this->db->query($sql);
-        if ($result->num_rows) {
+        if (is_object($result)) {
             $data = $result->fetch_assoc();
             // Decrypt the encrypted entries
             foreach (['Usuario_mh', 'Password_mh'] as $key) {
