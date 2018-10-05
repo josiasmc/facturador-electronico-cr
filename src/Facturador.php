@@ -499,9 +499,8 @@ class Facturador
                     LIMIT 1";
             do {
                 $query = $db->query($sqlr);
-                if (is_object($query)) {
+                if ($r = $query->fetch_assoc()) {
                     $row = true;
-                    $r = $query->fetch_assoc();
                     //Volvemos a enviar el comprobante
                     $clave = $r['Clave'];
                     $savedPost = $r['Respuesta'];

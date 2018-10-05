@@ -62,9 +62,8 @@ class Token
         //Revisar si hay una entrada en la base de datos
         $sql = "SELECT * FROM Tokens WHERE Client_id=$id";
         $result = $db->query($sql);
-        if (is_object($result)) {
+        if ($row = $result->fetch_assoc()) {
             //Revisar si el token es valido
-            $row = $result->fetch_assoc();
             if ($this->_validToken($row['expires_in'])) {
                 //token valido
                 return $row['access_token'];
@@ -179,12 +178,17 @@ class Token
         $rei = $data['refresh_expires_in'] + $now;
         $result = $db->query($sql);
         if (is_object($result)) {
-            $sql = "UPDATE Tokens SET
-                access_token='$ac',
-                expires_in='$ei',
-                refresh_token='$rt',
-                refresh_expires_in='$rei'
-                WHERE Client_id=$id";
+            if ($result->num_rows) {
+                $sql = "UPDATE Tokens SET
+                    access_token='$ac',
+                    expires_in='$ei',
+                    refresh_token='$rt',
+                    refresh_expires_in='$rei'
+                    WHERE Client_id=$id";
+            } else {
+                $sql = "INSERT INTO Tokens VALUES
+                    ('$id', '$ac', '$ei', '$rt', '$rei')";
+            }
         } else {
             $sql = "INSERT INTO Tokens VALUES
                 ('$id', '$ac', '$ei', '$rt', '$rei')";
