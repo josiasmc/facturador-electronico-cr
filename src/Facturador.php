@@ -603,6 +603,11 @@ class Facturador
         }
         //Eliminar la firma
         $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
+        $encoding = mb_detect_encoding($xml, 'UTF-8, ISO-8859-1', true);
+        if ($encoding != 'UTF-8') {
+            //Lo codificamos de ISO-8859-1 a UTF-8
+            $xml = utf8_encode($xml);
+        }
         $xml = preg_replace("/\<\/Tipo\>[\s]*\<Codigo\>/", '</Tipo><Codi>', $xml);
         $xml = preg_replace("/\<\/Codigo\>[\s]*\<\/Codigo>/", '</Codi></Codigo>', $xml);
         //Coger el elemento root del comprobante
