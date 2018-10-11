@@ -39,7 +39,7 @@ class Storage
      * 
      * @return \mysqli
      */
-    public function mySql($server, $user, $passwd, $db_name)
+    public static function mySql($server, $user, $passwd, $db_name)
     {
         //Create a connection to the database
         $db = new \mysqli($server, $user, $passwd);
@@ -70,7 +70,7 @@ class Storage
      * 
      * @return \mysqli The connection used to add the data
      */
-    private function _createDB($conn, $db_name, $db_version)
+    private static function _createDB($conn, $db_name, $db_version)
     {
         $sql = "CREATE DATABASE $db_name CHARACTER SET utf16 COLLATE utf16_general_ci";
         if (!$conn->query($sql)) {
@@ -156,7 +156,7 @@ class Storage
      * 
      * @return bool
      */
-    private function _versionCheck($db, $db_version)
+    private static function _versionCheck($db, $db_version)
     {
         $sql = "SELECT * FROM Version";
         // Get current database version

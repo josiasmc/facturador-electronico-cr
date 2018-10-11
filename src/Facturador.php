@@ -606,10 +606,9 @@ class Facturador
         $encoding = mb_detect_encoding($xml, 'UTF-8, ISO-8859-1', true);
         if ($encoding != 'UTF-8') {
             //Lo codificamos de ISO-8859-1 a UTF-8
+            //para poder leer xmls generados incorrectamente
             $xml = utf8_encode($xml);
         }
-        $xml = preg_replace("/\<\/Tipo\>[\s]*\<Codigo\>/", '</Tipo><Codi>', $xml);
-        $xml = preg_replace("/\<\/Codigo\>[\s]*\<\/Codigo>/", '</Codi></Codigo>', $xml);
         //Coger el elemento root del comprobante
         $s = stripos($xml, '<', 10) + 1;
         $e = stripos($xml, ' ', $s);
@@ -620,42 +619,39 @@ class Facturador
         $e = stripos($xml, '"', $s+10);
         global $ns;
         $ns = substr($xml, $s, $e - $s);
+        global $xmlns;
         $xmlns = '{'.$ns.'}';
 
         $service = new Service;
 
+        $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
+            return XmlReader::repeatKeyValue($reader, $GLOBALS['ns']);
+        };
         $f_keyValue = function (\Sabre\Xml\Reader $reader) {
             return \Sabre\Xml\Deserializer\keyValue($reader, $GLOBALS['ns']);
         };
-        $f_repeatingElements = function (\Sabre\Xml\Reader $reader) {
-            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['ns']);
+        $f_detalleServicio = function (\Sabre\Xml\Reader $reader) {
+            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
+        };
+        $f_codigoParser = function (\Sabre\Xml\Reader $reader) {
+            return XmlReader::codigoParser($reader, $GLOBALS['ns']);
         };
 
         $service->elementMap = [
-            $xmlns.$root => $f_keyValue,
+            $xmlns.$root => $f_repeatKeyValue,
             $xmlns.'Emisor' => $f_keyValue,
             $xmlns.'Receptor' => $f_keyValue,
             $xmlns.'Identificacion'  => $f_keyValue,
             $xmlns.'Ubicacion' => $f_keyValue,
             $xmlns.'Telefono' => $f_keyValue,
-            $xmlns.'Telefono' => $f_keyValue,
+            $xmlns.'Impuesto' => $f_keyValue,
             $xmlns.'ResumenFactura' => $f_keyValue,
-            $xmlns.'LineaDetalle' => $f_keyValue,
-            $xmlns.'Codigo' => $f_keyValue,
+            $xmlns.'DetalleServicio' => $f_detalleServicio,
+            $xmlns.'LineaDetalle' => $f_repeatKeyValue,
+            $xmlns.'Codigo' => $f_codigoParser,
             $xmlns.'Normativa' => $f_keyValue,
             $xmlns.'Otros' => $f_keyValue
         ];
-        if (substr_count($xml, '<MedioPago>') > 1) {
-            $service->elementMap[$xmlns.'MedioPago'] = $f_repeatingElements;
-        }
-
-        if (substr_count($xml, '<LineaDetalle>') > 1) {
-            $service->elementMap[$xmlns.'DetalleServicio'] = function (\Sabre\Xml\Reader $reader) {
-                return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
-            };
-        } else {
-            $service->elementMap[$xmlns.'LineaDetalle'] = $f_keyValue;
-        }
         return $service->parse($xml);
     }
 }

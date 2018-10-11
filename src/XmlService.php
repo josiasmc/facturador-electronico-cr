@@ -113,4 +113,39 @@ class XmlService extends \Sabre\Xml\Service
         }
         return $w->outputMemory();
     }
+
+
+    /**
+     * Parses a document in full.
+     *
+     * Input may be specified as a string or readable stream resource.
+     * The returned value is the value of the root document.
+     *
+     * Specifying the $contextUri allows the parser to figure out what the URI
+     * of the document was. This allows relative URIs within the document to be
+     * expanded easily.
+     *
+     * The $rootElementName is specified by reference and will be populated
+     * with the root element name of the document.
+     *
+     * @param string|resource $input
+     * @throws ParseException
+     * @return array|object|string
+     */
+    function parse($input, string $contextUri = null, string &$rootElementName = null) {
+
+        if (is_resource($input)) {
+            // Unfortunately the XMLReader doesn't support streams. When it
+            // does, we can optimize this.
+            $input = stream_get_contents($input);
+        }
+        $r = new XmlReader;
+        $r->contextUri = $contextUri;
+        $r->xml($input);
+
+        $result = $r->parse();
+        $rootElementName = $result['name'];
+        return $result['value'];
+
+    }
 }
