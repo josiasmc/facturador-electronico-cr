@@ -610,7 +610,8 @@ class Facturador
             $xml = utf8_encode($xml);
         }
         //Coger el elemento root del comprobante
-        $s = stripos($xml, '<', 10) + 1;
+        $st = substr($xml, 0, 2) == '<?' ? 10 : 0;
+        $s = stripos($xml, '<', $st) + 1;
         $e = stripos($xml, ' ', $s);
         $root = substr($xml, $s, $e - $s);
 
@@ -621,7 +622,6 @@ class Facturador
         $ns = substr($xml, $s, $e - $s);
         global $xmlns;
         $xmlns = '{'.$ns.'}';
-
         $service = new Service;
 
         $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
