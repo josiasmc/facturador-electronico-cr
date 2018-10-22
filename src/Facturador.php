@@ -610,11 +610,12 @@ class Facturador
             $xml = utf8_encode($xml);
         }
         //Coger el elemento root del comprobante
-        $st = substr($xml, 0, 2) == '<?' ? 10 : 0;
+        $st = stripos(substr($xml, 0, 10), '?');
+        $st = $st ? 10 : 0;
         $s = stripos($xml, '<', $st) + 1;
         $e = stripos($xml, ' ', $s);
         $root = substr($xml, $s, $e - $s);
-
+        
         //Coger el namespace del comprobante
         $s = stripos($xml, 'xmlns=') + 7;
         $e = stripos($xml, '"', $s+10);
@@ -644,6 +645,7 @@ class Facturador
             $xmlns.'Identificacion'  => $f_keyValue,
             $xmlns.'Ubicacion' => $f_keyValue,
             $xmlns.'Telefono' => $f_keyValue,
+            $xmlns.'Fax' => $f_keyValue,
             $xmlns.'Impuesto' => $f_keyValue,
             $xmlns.'ResumenFactura' => $f_keyValue,
             $xmlns.'DetalleServicio' => $f_detalleServicio,
