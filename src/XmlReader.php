@@ -86,9 +86,16 @@ class XmlReader
      */
     public static function codigoParser(Reader $reader, string $namespace)
     {
+        // If there's no children, we don't do anything.
+        if ($reader->isEmptyElement) {
+            $reader->next();
+            return '';
+        }
+        
         $reader->read();
         $values = [];
         $text = null;
+
         do {
             $type = $reader->nodeType;
             if ($type === Reader::TEXT || $type === Reader::CDATA) {

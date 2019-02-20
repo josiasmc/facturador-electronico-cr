@@ -101,7 +101,11 @@ class Facturador
     public function cogerEmpresa($id)
     {
         $empresas = new Empresas($this->container);
-        return $empresas->get($id);
+        if ($empresas->exists($id)) {
+            return $empresas->get($id);
+        } else {
+            return false;
+        }
     }
 
      /**
