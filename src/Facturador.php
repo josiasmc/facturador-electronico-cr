@@ -427,6 +427,23 @@ class Facturador
     }
 
     /**
+     * Coger el xml de un comprobante recibido
+     * 
+     * @param string $clave La clave del comprobante recibido
+     * 
+     * @return string El contenido del archivo xml recibido
+     */
+    public function cogerXmlRecepcion($clave) 
+    {
+        $db = $this->container['db'];
+        $sql = "SELECT xmlRecibido
+        FROM Recepciones
+        WHERE Clave='$clave'";
+        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlConfirmacion']);
+        return $xml;
+    }
+
+    /**
      * Coger el msg de un comprobante
      * 
      * @param string $clave La clave del comprobante recibido
