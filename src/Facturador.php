@@ -439,7 +439,7 @@ class Facturador
         $sql = "SELECT xmlRecibido
         FROM Recepciones
         WHERE Clave='$clave'";
-        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlConfirmacion']);
+        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlRecibido']);
         return $xml;
     }
 
