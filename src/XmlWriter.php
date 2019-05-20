@@ -91,7 +91,7 @@ class XmlWriter  extends \Sabre\Xml\Writer
                     foreach ($item as $value) {
                         $this->write([$name => $value]);
                     } 
-                } elseif (is_string($name) && is_array($item) && isset($item['name'])) {
+                }/* elseif (is_string($name) && is_array($item) && isset($item['name'])) {
 
                     // The key is used for a name, but $item has 'name' and
                     // possibly 'value', so create a child node for it
@@ -99,7 +99,7 @@ class XmlWriter  extends \Sabre\Xml\Writer
                     $this->write($item);
                     $this->endElement();
     
-                } elseif (is_array($item) && isset($item['name'])) {
+                }*/ elseif (is_array($item) && isset($item['name'])) {
 
                     // if the array had a 'name' element, we assume that this array
                     // describes a 'name' and optionally 'attributes' and 'value'.
