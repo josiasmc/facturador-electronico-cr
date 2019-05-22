@@ -1,13 +1,13 @@
 {
     "name": "contica/facturador_electronico_cr",
     "type": "library",
-    "description": "Componente para facturacion electronica en Costa Rica",
+    "description": "Un facturador de código libre para integrar facturación electrónica en Costa Rica a un proyecto PHP",
     "keywords": [
         "costa rica",
         "facturacion electronica",
         "facturacion"
     ],
-    "homepage": "https://github.com/contica/facturador_electronico_cr",
+    "homepage": "https://github.com/josiasmc/facturador_electronico_cr",
     "license": "MIT",
     "authors": [{
         "name": "Josias Martin",
@@ -19,7 +19,6 @@
         "php": "~7.1",
         "defuse/php-encryption": "^2.2",
         "guzzlehttp/guzzle": "^6.3",
-        "nekman/luhn-algorithm": "^4.0",
         "sabre/xml": "^2.1",
         "monolog/monolog": "^1.24"
     },

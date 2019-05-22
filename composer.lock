@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "e73d6949fcc9e69475385d87c46f21fc",
+    "content-hash": "f746b084e5db423d313945dd92d88d22",
     "packages": [
         {
             "name": "defuse/php-encryption",
@@ -329,49 +329,6 @@
                 "psr-3"
             ],
             "time": "2018-11-05T09:00:11+00:00"
-        },
-        {
-            "name": "nekman/luhn-algorithm",
-            "version": "4.0.5",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/Ekman/Luhn-Algorithm.git",
-                "reference": "a7d281ed0186aabcff719422ba5265ef21b5a34e"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/Ekman/Luhn-Algorithm/zipball/a7d281ed0186aabcff719422ba5265ef21b5a34e",
-                "reference": "a7d281ed0186aabcff719422ba5265ef21b5a34e",
-                "shasum": ""
-            },
-            "require": {
-                "php": "^7.0"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Nekman\\LuhnAlgorithm\\": "src"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Niklas Ekman",
-                    "email": "nikl.ekman@gmail.com"
-                }
-            ],
-            "description": "Implementation of the Luhn algorithm in PHP. Used in validation of credit card numbers and some national identification numbers.",
-            "keywords": [
-                "card",
-                "credit",
-                "identification",
-                "luhn",
-                "validation"
-            ],
-            "time": "2018-11-23T08:07:42+00:00"
         },
         {
             "name": "paragonie/random_compat",
