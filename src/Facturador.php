@@ -5,18 +5,18 @@
  * Este componente suple una interfaz para la integración de facturación
  * electrónica con el Ministerio de Hacienda en Costa Rica
  * 
- * PHP version 7.1
+ * PHP version 7.2
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\FacturadorElectronico
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturacion-electronica-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 use \Defuse\Crypto\Key;
 use \Sabre\Xml\Service;
@@ -27,64 +27,56 @@ use \GuzzleHttp\Client;
  * 
  * @category Facturacion-electronica
  * @package  Contica\eFacturacion
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
  * @link     https://github.com/josiasmc/facturacion-electronica-cr
  */
-class Facturador
+class FacturadorElectronico
 {
     protected $container;
     
     /**
      * Invoicer constructor
      * 
-     * @param array $settings Ajustes para el facturador
+     * @param MySqli $db            Conexion a MySql, conectado a la tabla correspondiente
+     * @param string $crypto_key    Llave para utilizar en encriptado de datos en la BD
+     * @param int    $client_id     Id de cliente que accesa el sistema
      */
-    public function __construct($settings = array())
+    public function __construct($db, $crypto_key = '', $client_id = 0)
     {
-        $config = array_merge(
-            [
-            'servidor' => 'localhost',
-            'base_datos' => 'e_facturacion',
-            'usuario' => 'root',
-            'contra' => 'password',
-            'llave' => 
-                'def0000057b1b0528f59f7ba3da8a25f60e9498bb0060'.
-                'a652843681d9f8ca53746679318aab2e54a9d4c2485f4'.
-                '6441709de9f0c4aa494dc31acf3d64484f88089296ebe6',
-            'callbackUrl' => '',
-            'callbackUrlRecepcion' => ''
-            ], $settings
-        );
-        // Crear conexion a la base de datos
-        $db = Storage::mySql(
-            $config['servidor'],
-            $config['usuario'],
-            $config['contra'],
-            $config['base_datos']
-        );
+
         // Initialize the container
         $this->container = [
-            'cryptoKey' => Key::loadFromAsciiSafeString($config['llave']),
             'db' => $db,
-            'callbackUrl' => $config['callbackUrl'],
-            'callbackUrlRecepcion' => $config['callbackUrlRecepcion']
+            'crypto_key' => $crypto_key,
+            'client_id' => $client_id
         ];
+    }
+
+    /**
+     * Crear llave de encriptacion de base de datos
+     * 
+     * @return string La representacion en texto de la llave
+     */
+    public static function crearLlaveSeguridad()
+    {
+        $key = Key::createNewRandomKey();
+        return $key->saveToAsciiSafeString();
     }
 
     /**
      * Crear o modificar una empresa
      *
-     * @param int   $id    Cedula de la empresa
      * @param array $datos Los datos de la empresa
+     * @param int   $id    El ID de la empresa cuando se va a modificar
      *
-     * @return bool El resultado de la operacion
+     * @return int El ID unico de la empresa creada
      */
-    public function guardarEmpresa($id, $datos)
+    public function guardarEmpresa($datos, $id = 0)
     {
         $empresas = new Empresas($this->container);
-        if (!$empresas->exists($id)) {
+        if ($id !== 0) {
             return $empresas->add($id, $datos);
         } else {
             return $empresas->modify($id, $datos);
@@ -94,7 +86,7 @@ class Facturador
     /**
      * Coger los datos de una empresa
      * 
-     * @param int $id Cedula de la empresa
+     * @param int $id ID unico de la empresa
      * 
      * @return array Todos los campos de texto de la empresa
      */
@@ -109,13 +101,13 @@ class Facturador
     }
 
      /**
-     * Coger el certificado de la empresa
+     * Coger la llave criptografica de la empresa
      * 
-     * @param int $id Cedula de la empresa
+     * @param int $id ID unico de la empresa
      * 
-     * @return file El certificado de la empresa
+     * @return file La llave criptografica de la empresa
      */
-    public function cogerCertificadoEmpresa($id)
+    public function cogerLlaveCriptograficaEmpresa($id)
     {
         $empresas = new Empresas($this->container);
         return $empresas->getCert($id);
@@ -137,16 +129,17 @@ class Facturador
     /**
      * Procesar mensaje Hacienda
      * 
-     * @param string $cuerpo El cuerpo del mensaje de Hacienda
+     * @param string $cuerpo El cuerpo del POST de Hacienda
+     * @param int    $lugar  Emision o Recepcion
      * 
      * @return array Estado del comprobante enviado
      */
-    public function procesarMensajeHacienda($cuerpo)
+    public function procesarMensajeHacienda($cuerpo, $lugar)
     {
         $db = $this->container['db'];
         $cuerpo = json_decode($cuerpo, true);
         $ind_estado = strtolower($cuerpo['ind-estado']);
-        if (($ind_estado == 'recibido') || ($ind_estado == 'procesando')) {
+        if ($ind_estado == 'recibido') {
             $ind_estado = 'enviado';
         }
         $clave = substr($cuerpo['clave'], 0, 50);

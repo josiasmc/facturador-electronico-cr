@@ -1,14 +1,12 @@
 <?php
 /**
- * Proveedor de almacenaje para el facturador
+ * Interfaz de almacenaje y lectura de la base de datos
  * 
- * Funciones para interactuar con la base de datos
- * 
- * PHP version 7.1
+ * PHP version 7.2
  * 
  * @category  Facturacion-electronica
  * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
@@ -22,7 +20,7 @@ namespace Contica\eFacturacion;
  * 
  * @category Facturacion-electronica
  * @package  Contica\eFacturacion\Empresas
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
  * @link     https://github.com/josiasmc/facturacion-electronica-cr
