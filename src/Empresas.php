@@ -7,15 +7,15 @@
  * PHP version 7.1
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 use \Defuse\Crypto\Crypto;
 
@@ -23,15 +23,16 @@ use \Defuse\Crypto\Crypto;
  * Class providing functions to manage companies
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\Empresas
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion\Empresas
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Empresas
 {
     protected $container;
+    protected $log;
 
 
     /**
@@ -42,35 +43,47 @@ class Empresas
     public function __construct($container)
     {
         $this->container = $container;
+        $this->log = $container['log'];
     }
 
     /**
-     * Checks to see if the company exists
+     * Revisar si ya hay una empresa con cierta cedula
      * 
-     * @param int $id The cedula of the company
+     * @param int $cedula La cedula de la empresa
      * 
-     * @return bool Existence
+     * @return int Id unico de la empresa si existe
      */
-    public function exists($id)
+    public function buscarPorCedula($cedula)
     {
         $db = $this->container['db'];
-        $sql = "SELECT Cedula FROM Empresas WHERE Cedula='$id'";
-        return $db->query($sql)->num_rows == 1;
+        $client_id = $this->container['client_id'];
+        $sql = "SELECT id_empresa FROM fe_empresas
+        WHERE cedula='$cedula' AND id_cliente='$client_id'";
+        $r = $db->query($sql);
+        if ($r->num_rows > 0) {
+            $cps = [];
+            while ($row = $r->fetch_row()) {
+                $cps[] = $row[0];
+            }
+            return $cps;
+        } else {
+            return false;
+        }
     }
 
     /**
-     * Add a new company to the database
+     * Crear una nueva empresa para el cliete actual
      * 
-     * @param int   $id   The cedula of the company to add
-     * @param array $data Company information
+     * @param array $data Informacion de la empresa
      * 
-     * @return bool Result of the operation
+     * @return int El ID de la empresa creada
      */
-    public function add($id, $data)
+    public function add($data)
     {
         $db = $this->container['db'];
+        $client_id = $this->container['client_id'];
+
         $prepedData = $this->_prepData($data);
-        $prepedData['Cedula'] = $id;
         $fields = "";
         $values = "";
         foreach ($prepedData as $key => $value) {
@@ -79,39 +92,46 @@ class Empresas
         }
         $fields = rtrim($fields, ", ");
         $values = rtrim($values, ", ");
-        $sql = "INSERT INTO Empresas ($fields) VALUES ($values)";
+        $sql = "INSERT INTO fe_empresas ($fields) VALUES ($values)";
         if ($db->query($sql) === true) {
-            return true;
+            return $db->insert_id;
         } else {
-            throw new \Exception("Error adding company: " . $db->error);
+            $this->log->error("Error guardando empresa para el cliente $client_id: $db->error");
+            throw new \Exception("Error guardando empresa: " . $db->error);
         }
         return false;
     }
 
     /**
-     * Modify an existing company
+     * Modificar una empresa existente
      * 
-     * @param int   $id   The company's cedula
-     * @param array $data The company's data to modify
+     * @param int   $id   El ID unico de la empresa
+     * @param array $data La informacion de la empresa a modificar
      * 
-     * @return bool Result
+     * @return bool resultado
      */
     public function modify($id, $data)
     {
         $db = $this->container['db'];
+        $client_id = $this->container['client_id'];
         $prepedData = $this->_prepData($data);
         $values = '';
         foreach ($prepedData as $key => $value) {
             $values .= $key . '=' . $this->_prepValue($value) . ', ';
         }
         $values = rtrim($values, ', ');
-        $sql = "UPDATE Empresas SET $values WHERE Cedula='$id'";
-        if ($db->query($sql) === true) {
-            return true;
+        $sql = "UPDATE fe_empresas SET $values
+        WHERE id_empresa='$id' AND id_cliente='$client_id'";
+        if ($r = $db->query($sql) === true) {
+            if ($db->affected_rows > 0) {
+                return true;
+            } else {
+                return false;
+            }
         } else {
-            throw new \Exception("Error updating company: " . $db->error);
+            $this->log->error("Error actualizando empresa $id para el cliente $client_id: $db->error");
+            throw new \Exception("Error actualizando empresa: " . $db->error);
         }
-        return false;
     }
 
     /**
@@ -172,13 +192,12 @@ class Empresas
     private function _prepData($data)
     {
         $db = $this->container['db'];
-        $cryptoKey = $this->container['cryptoKey'];
+        $cryptoKey = $this->container['crypto_key'];
         // The fields that need sql escaping
         $fields = [
-            'Nombre' => 'nombre',
-            'Email' => 'email',
-            'Certificado_mh' => 'certificado',
-            'Id_ambiente_mh' => 'id_ambiente'
+            'id_ambiente' => 'ambiente',
+            'llave_criptografica' => 'llave_criptografica',
+            'cedula' => 'cedula'
         ];
         $prepd = array();
         foreach ($fields as $key => $value) {
@@ -188,13 +207,17 @@ class Empresas
         }
         // The fields that need encryption
         $fields = [
-            'Usuario_mh' => 'usuario',
-            'Password_mh' => 'contra',
-            'Pin_mh' => 'pin'
+            'usuario_mh' => 'usuario',
+            'contra_mh' => 'contra',
+            'pin_llave' => 'pin'
         ];
         foreach ($fields as $key => $value) {
             if (array_key_exists($value, $data)) {
-                $prepd[$key] = Crypto::encrypt((string)$data[$value], $cryptoKey);
+                if ($cryptoKey) {
+                    $prepd[$key] = Crypto::encrypt((string)$data[$value], $cryptoKey);
+                } else {
+                    $prepd[$key] = $data[$value];
+                }
             }
         }
         return $prepd;

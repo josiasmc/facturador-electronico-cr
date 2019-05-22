@@ -5,194 +5,139 @@
  * PHP version 7.2
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
+ * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 /**
- * Esta clase provee una conexion a la base de datos
+ * Esta clase provee metodos relacionados a almacenaje en la base de datos
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\Empresas
+ * @package  Contica\Facturacion\Storage
  * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Storage
 {
+
     /**
-     * Create a new connection to a MySql database
+     * Automatic migrations to the database
      * 
-     * @param string $server  Database server
-     * @param string $user    Database username
-     * @param string $passwd  Database password
-     * @param string $db_name Database name
+     * @param \mysqli $db The database connection
      * 
-     * @return \mysqli
+     * @return int Current database version
      */
-    public static function mySql($server, $user, $passwd, $db_name)
+    public static function run_migrations($db)
     {
-        //Create a connection to the database
-        $db = new \mysqli($server, $user, $passwd);
+        $current_version = Storage::_versionCheck($db);
+        $versions = [
+            1 => [
+                //Crear y agregar datos a la tabla de ajustes
+                "CREATE TABLE `fe_settings` (
+                    `setting` varchar(32) NOT NULL,
+                    `value` varchar(255) NOT NULL
+                  )",
 
-        //Check the connection
-        if ($db->connect_error) {
-            throw new \Exception("Error de conexión MySQL: " . $db->connect_error);
+                "ALTER TABLE `fe_settings`
+                    ADD PRIMARY KEY (`setting`)",
+
+                "INSERT INTO `fe_settings` (`setting`, `value`)
+                    VALUES ('db_version', '0')",
+
+                //Crear y agregar datos a la tabla de ambientes
+                'CREATE TABLE `fe_ambientes` (
+                    `id_ambiente` int(1) NOT NULL,
+                    `nombre` varchar(25) NOT NULL,
+                    `client_id` varchar(55) NOT NULL,
+                    `uri_idp` varchar(255) NOT NULL,
+                    `uri_api` varchar(255) NOT NULL
+                  )',
+
+                "INSERT INTO `fe_ambientes` 
+                    (`id_ambiente`, `nombre`, `client_id`, `uri_idp`, `uri_api`) 
+                    VALUES
+                    (1, 'Staging/Sandbox', 'api-stag', 
+                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut-stag/protocol/openid-connect/token', 
+                    'https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/'),
+                    (2, 'Producción', 'api-prod', 
+                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token', 
+                    'https://api.comprobanteselectronicos.go.cr/recepcion/v1/'
+                  )",
+
+                // Crear tabla de las empresas
+                "CREATE TABLE `fe_empresas` (
+                    `id_empresa` int(11) NOT NULL,
+                    `id_cliente` int(11) NOT NULL,
+                    `id_ambiente` int(1) NOT NULL DEFAULT '1',
+                    `cedula` varchar(12) NOT NULL,
+                    `usuario_mh` varchar(512) NOT NULL,
+                    `contra_mh` varchar(512) NOT NULL,
+                    `pin_llave` varchar(512) NOT NULL,
+                    `llave_criptografica` blob NOT NULL
+                  )",
+
+                // Crear tabla para guardar logs
+                "CREATE TABLE `fe_monolog` (
+                    `channel` varchar(255) NOT NULL,
+                    `level` int(3) NOT NULL,
+                    `message` text NOT NULL,
+                    `time` int(11) NOT NULL
+                  )",
+
+                //Crear indices de las tablas
+                'ALTER TABLE `fe_ambientes`
+                    ADD PRIMARY KEY (`id_ambiente`)',
+
+                'ALTER TABLE `fe_empresas`
+                    ADD PRIMARY KEY (`id_empresa`),
+                    ADD KEY `cliente` (`id_cliente`),
+                    ADD KEY `id_ambiente` (`id_ambiente`)',
+            ]
+        ];
+        foreach ($versions as $version => $statements) {
+            if ($version > $current_version) {
+                foreach ($statements as $sql) {
+                    $db->query($sql);
+                }
+                $current_version = $version;
+            }
         }
-
-
-        //Check for database existence
-        $db_version = 3; // Set to version required by component
-        if ($db->select_db($db_name)) {
-            //Check for up to date database version
-            Storage::_versionCheck($db, $db_version); 
-            return $db;
-        } else {            
-            return Storage::_createDB($db, $db_name, $db_version);
-        }
+        //Save the current database version
+        $db->query("UPDATE fe_settings SET value='$current_version'
+        WHERE setting='db_version'");
+        return $current_version;
     }
 
     /**
-     * Create a new database according to our needs
-     * 
-     * @param \mysqli $conn       The database connection
-     * @param string  $db_name    The name of the database to create
-     * @param int     $db_version Version of the database saved
-     * 
-     * @return \mysqli The connection used to add the data
-     */
-    private static function _createDB($conn, $db_name, $db_version)
-    {
-        $sql = "CREATE DATABASE $db_name CHARACTER SET utf16 COLLATE utf16_general_ci";
-        if (!$conn->query($sql)) {
-            throw new \Exception("Error creando base de datos: $conn->error");
-        }
-        $conn->select_db($db_name);
-        $statements = [
-            'CREATE TABLE `Ambientes` (
-                `Id_ambiente` int(1) NOT NULL,
-                `Nombre` varchar(25) NOT NULL,
-                `Client_id` varchar(55) NOT NULL,
-                `URI_IDP` varchar(255) NOT NULL,
-                `URI_API` varchar(255) NOT NULL)',
-            "INSERT INTO `Ambientes` 
-                (`Id_ambiente`, `Nombre`, `Client_id`, `URI_IDP`, `URI_API`) 
-                VALUES
-                (1, 'Staging/Sandbox', 'api-stag', 
-                'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut-stag/protocol/openid-connect/token', 
-                'https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/'),
-                (2, 'Producción', 'api-prod', 
-                'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token', 
-                'https://api.comprobanteselectronicos.go.cr/recepcion/v1/')",
-            'CREATE TABLE `Emisiones` (
-                `Clave` varchar(55) NOT NULL,
-                `Cedula` varchar(55) NOT NULL,
-                `Estado` int(1) DEFAULT NULL,
-                `msg` VARCHAR(255) NULL,
-                `xmlFirmado` blob,
-                `Respuesta` blob)',
-            'CREATE TABLE `Recepciones` (
-                `Clave` VARCHAR(55) NOT NULL ,
-                `Cedula` VARCHAR(12) NOT NULL ,
-                `Estado` INT(2) NOT NULL ,
-                `msg` VARCHAR(255) NULL
-                `xmlRecibido` BLOB NULL ,
-                `xmlConfirmacion` BLOB NULL ,
-                `Respuesta` BLOB NULL ,
-                PRIMARY KEY (`Clave`),
-                INDEX `Cedula` (`Cedula`))',
-            'CREATE TABLE `Empresas` (
-                `Cedula` varchar(55) NOT NULL,
-                `Nombre` varchar(50) DEFAULT NULL,
-                `Email` varchar(50) DEFAULT NULL,
-                `Certificado_mh` blob,
-                `Usuario_mh` varchar(512) DEFAULT NULL,
-                `Password_mh` varchar(512) DEFAULT NULL,
-                `Pin_mh` varchar(512) DEFAULT NULL,
-                `Id_ambiente_mh` int(1) DEFAULT NULL)',
-            'CREATE TABLE `Tokens` (
-                `Client_id` varchar(55) NOT NULL,
-                `access_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
-                `expires_in` INT(16) NOT NULL,
-                `refresh_token` varchar(2048) CHARACTER SET utf16 NOT NULL,
-                `refresh_expires_in` INT(16) NOT NULL)',
-            'CREATE TABLE `Version` ( `db_version` INT(3) NOT NULL )',
-            "INSERT INTO `Version` (`db_version`) VALUES ($db_version)",
-            'ALTER TABLE `Ambientes`
-                ADD PRIMARY KEY (`Id_ambiente`)',
-            'ALTER TABLE `Emisiones`
-                ADD PRIMARY KEY (`Clave`),
-                ADD KEY `Cedula_E` (`Cedula`) USING BTREE',
-            'ALTER TABLE `Empresas`
-                ADD PRIMARY KEY (`Cedula`),
-                ADD KEY `Ambiente` (`Id_ambiente_mh`)',
-            'ALTER TABLE `Tokens`
-                ADD PRIMARY KEY (`Client_id`)',
-            'ALTER TABLE `Emisiones`
-                ADD CONSTRAINT `Cedula_E` FOREIGN KEY (`Cedula`) REFERENCES `Empresas` (`Cedula`)',
-            'ALTER TABLE `Empresas`
-                ADD CONSTRAINT `Ambiente` FOREIGN KEY (`Id_ambiente_mh`) REFERENCES `Ambientes` (`Id_ambiente`) ON UPDATE CASCADE'
-            ];
-        foreach ($statements as $sql) {
-            $conn->query($sql);
-        }
-        return $conn;
-    }
-
-    /**
-     * Database updater
+     * Database version check
      * 
      * @param \mysqli $db         Database connection
-     * @param int     $db_version Version to update to
      * 
      * @return bool
      */
-    private static function _versionCheck($db, $db_version)
+    private static function _versionCheck($db)
     {
-        $sql = "SELECT * FROM Version";
-        // Get current database version
-        $version = $db->query($sql)->fetch_assoc()['db_version'];
-        if ($db_version == $version) {
-            return true;
-        }
+        //Revisar si existe la base de datos
+        $sql = "SELECT count(*) FROM information_schema.TABLES
+        WHERE TABLE_NAME = 'fe_settings' AND TABLE_SCHEMA in (SELECT DATABASE())";
+        $settings_exists = $db->query($sql)->fetch_row()[0];
 
-        $versions = [
-            2 => [
-                "UPDATE Version SET `db_version`=$db_version",
-                'CREATE TABLE `Recepciones` (
-                    `Clave` VARCHAR(55) NOT NULL ,
-                    `Cedula` VARCHAR(12) NOT NULL ,
-                    `Estado` INT(2) NOT NULL ,
-                    `xmlRecibido` BLOB NULL ,
-                    `xmlConfirmacion` BLOB NULL ,
-                    `Respuesta` BLOB NULL ,
-                    PRIMARY KEY (`Clave`),
-                    INDEX `Cedula` (`Cedula`))'
-            ],
-            3=> [
-                "UPDATE Version SET `db_version`=$db_version",
-                "ALTER TABLE `Emisiones`
-                    ADD `msg` VARCHAR(255) NULL AFTER `Estado`;",
-                "ALTER TABLE `Recepciones`
-                    ADD `msg` VARCHAR(255) NULL AFTER `Estado`;"
-            ]
-        ];
-        foreach ($versions as $ver => $statements) {
-            if ($ver > $version) {
-                foreach ($statements as $statement) {
-                    $db->query($statement);
-                }                
-                echo $db->error;
-            }
+        if ($settings_exists) {
+            // Get current database version
+            $sql = "SELECT value FROM fe_settings
+                WHERE setting='db_version'";
+            return $db->query($sql)->fetch_row()[0];
+        } else {
+            // No settings table yet
+            return 0;
         }
-        return true;
     }
-
 }

@@ -1,22 +1,22 @@
 {
-    "name": "contica/facturacion-electronica-cr",
+    "name": "contica/facturador_electronico_cr",
     "type": "library",
     "description": "Componente para facturacion electronica en Costa Rica",
     "keywords": [
         "costa rica",
-        "facturacion-electronica",
+        "facturacion electronica",
         "facturacion"
     ],
-    "homepage": "https://github.com/contica/cr-electronic-invoicing",
+    "homepage": "https://github.com/contica/facturador_electronico_cr",
     "license": "MIT",
     "authors": [{
         "name": "Josias Martin",
-        "email": "josiasmc@emypeople.net",
+        "email": "josias@solucionesinduso.com",
         "homepage": "https://github.com/josiasmc",
         "role": "Developer"
     }],
     "require": {
-        "php": "~7.0",
+        "php": "~7.1",
         "defuse/php-encryption": "^2.2",
         "guzzlehttp/guzzle": "^6.3",
         "nekman/luhn-algorithm": "^4.0",
@@ -29,12 +29,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Contica\\eFacturacion\\": "src"
+            "Contica\\Facturacion\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Contica\\eFacturacion\\": "tests"
+            "Contica\\Facturacion\\": "tests"
         }
     },
     "scripts": {

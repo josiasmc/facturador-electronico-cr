@@ -21,6 +21,7 @@ namespace Contica\Facturacion;
 use \Defuse\Crypto\Key;
 use \Sabre\Xml\Service;
 use \GuzzleHttp\Client;
+use Monolog\Logger;
 
 /**
  * El proveedor de facturacion
@@ -49,9 +50,14 @@ class FacturadorElectronico
         // Initialize the container
         $this->container = [
             'db' => $db,
-            'crypto_key' => $crypto_key,
+            'crypto_key' => $crypto_key ? Key::loadFromAsciiSafeString($crypto_key) : '',
             'client_id' => $client_id
         ];
+        // Inicializar el logger
+        $loglevel = Logger::INFO;
+        $log = new Logger('facturador');
+        $log->pushHandler(new MySqlLogger($db, $loglevel));
+        $this->container['log'] = $log;
     }
 
     /**
@@ -76,9 +82,12 @@ class FacturadorElectronico
     public function guardarEmpresa($datos, $id = 0)
     {
         $empresas = new Empresas($this->container);
-        if ($id !== 0) {
-            return $empresas->add($id, $datos);
+        $log = $this->container['log'];
+        if ($id === 0) {
+            $log->notice('Creando empresa nueva para el cliente con ID ' . $this->container['client_id']);
+            return $empresas->add($datos);
         } else {
+            $log->info("Modificando empresa $id para el cliente con ID " . $this->container['client_id']);
             return $empresas->modify($id, $datos);
         }
     }
@@ -93,11 +102,20 @@ class FacturadorElectronico
     public function cogerEmpresa($id)
     {
         $empresas = new Empresas($this->container);
-        if ($empresas->exists($id)) {
-            return $empresas->get($id);
-        } else {
-            return false;
-        }
+        return $empresas->get($id);
+    }
+
+    /**
+     * Buscar el ID de las empresas con cierta cedula
+     * 
+     * @param int $cedula La cedula de la empresa
+     * 
+     * @return array Array con los IDs de las empresas con la cedula provista
+     */
+    public function buscarEmpresaPorCedula($cedula)
+    {
+        $empresas = new Empresas($this->container);
+        return $empresas->buscarPorCedula($cedula);
     }
 
      /**
