@@ -164,7 +164,7 @@ class Empresas
         if ($result->num_rows > 0) {
             $return = [];
             while ($data = $result->fetch_assoc()) {
-                if ($id) {
+                if ($id != '') {
                     // Decrypt the encrypted entries
                     foreach (['usuario', 'contra', 'pin'] as $key) {
                         if ($data[$key]) {
