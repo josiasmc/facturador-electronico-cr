@@ -82,6 +82,7 @@ class Empresas
     {
         $db = $this->container['db'];
         $client_id = $this->container['client_id'];
+        $data['id_cliente'] = $client_id;
 
         $prepedData = $this->_prepData($data);
         $fields = "";
@@ -137,29 +138,43 @@ class Empresas
     /**
      * Get an existing company
      * 
-     * @param int $id The company's cedula
+     * @param int $id Id unico de la empresa.
+     *                Si no se provee, devuelve todas las del cliente
      * 
-     * @return array The company's data, without the certificate
+     * @return array Toda la informacion de la empresa, sin la llave criptografica
      */
-    public function get($id)
+    public function get($id = '')
     {
         $db = $this->container['db'];
-        $cryptoKey = $this->container['cryptoKey'];
-        $sql = "SELECT Cedula As cedula, Nombre AS nombre, Email AS email,
-                    Usuario_mh AS usuario, Password_mh AS contra, 
-                    Pin_mh AS pin, Id_ambiente_mh AS id_ambiente
-                    FROM Empresas
-                    WHERE Cedula=$id";
-        $result = $db->query($sql);
+        $client_id = $this->container['client_id'];
+        $cryptoKey = $this->container['crypto_key'];
+
+        if ($id != '') {
+            $stmt = $db->prepare("SELECT id_empresa AS id, cedula, usuario_mh AS usuario,
+            contra_mh AS contra, id_ambiente AS ambiente FROM fe_empresas
+            WHERE id_cliente=? AND id_empresa=?");
+            $stmt->bind_param('si', $client_id, $id);
+        } else {
+            $stmt = $db->prepare("SELECT id_empresa AS id, cedula FROM fe_empresas
+            WHERE id_cliente=?");
+            $stmt->bind_param('s', $client_id);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
         if ($result->num_rows > 0) {
-            $data = $result->fetch_assoc();
-            // Decrypt the encrypted entries
-            foreach (['usuario', 'contra', 'pin'] as $key) {
-                if ($data[$key]) {
-                    $data[$key] = Crypto::decrypt($data[$key], $cryptoKey);
+            $return = [];
+            while ($data = $result->fetch_assoc()) {
+                if ($id) {
+                    // Decrypt the encrypted entries
+                    foreach (['usuario', 'contra', 'pin'] as $key) {
+                        if ($data[$key]) {
+                            $data[$key] = Crypto::decrypt($data[$key], $cryptoKey);
+                        }
+                    }
                 }
+                $return[] = $data;
             }
-            return $data;
+            return $id == '' ? $return : $return[0];
         }
         return false;
     }
@@ -197,7 +212,8 @@ class Empresas
         $fields = [
             'id_ambiente' => 'ambiente',
             'llave_criptografica' => 'llave_criptografica',
-            'cedula' => 'cedula'
+            'cedula' => 'cedula',
+            'id_cliente' => 'id_cliente'
         ];
         $prepd = array();
         foreach ($fields as $key => $value) {

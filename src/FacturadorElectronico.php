@@ -61,6 +61,16 @@ class FacturadorElectronico
     }
 
     /**
+     * Especificar el id de cliente
+     * 
+     * @return null
+     */
+    public function setClientId($id)
+    {
+        $this->container['client_id'] = $id;
+    }
+
+    /**
      * Crear llave de encriptacion de base de datos
      * 
      * @return string La representacion en texto de la llave
@@ -103,6 +113,17 @@ class FacturadorElectronico
     {
         $empresas = new Empresas($this->container);
         return $empresas->get($id);
+    }
+
+    /**
+     * Coger los datos basicos de todas las empresas
+     * 
+     * @return array (id, cedula) de todas las empresas
+     */
+    public function cogerEmpresas()
+    {
+        $empresas = new Empresas($this->container);
+        return $empresas->get();
     }
 
     /**

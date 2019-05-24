@@ -75,7 +75,7 @@ class Storage
                 // Crear tabla de las empresas
                 "CREATE TABLE `fe_empresas` (
                     `id_empresa` int(11) NOT NULL,
-                    `id_cliente` int(11) NOT NULL,
+                    `id_cliente` VARCHAR(80) NOT NULL,
                     `id_ambiente` int(1) NOT NULL DEFAULT '1',
                     `cedula` varchar(12) NOT NULL,
                     `usuario_mh` varchar(512) NOT NULL,
