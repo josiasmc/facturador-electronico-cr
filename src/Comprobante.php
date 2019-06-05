@@ -2,21 +2,19 @@
 /**
  * Interfaz para procesar los comprobantes electronicos
  *  
- * PHP version 7.1
+ * PHP version 7.3
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
-use \Nekman\LuhnAlgorithm\Number;
-use \Nekman\LuhnAlgorithm\LuhnAlgorithmFactory;
 use \GuzzleHttp\Client;
 use \GuzzleHttp\Exception;
 use \GuzzleHttp\Psr7;
@@ -25,261 +23,525 @@ use \GuzzleHttp\Psr7;
  * Class providing functions to manage electronic invoices
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\Comprobantes
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion\Comprobante
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Comprobante
 {
     protected $container;
-    protected $id; //cedula de empresa
-    protected $consecutivo; // consecutivo de comprobante
-    protected $clave; // clave generada por este sistema
-    protected $tipo; // tipo de comprobante
+    protected $id; //ID unico de la empresa
+    public $clave; // clave del comprobante
+    public $estado; // estado: 1=En cola, 2=Enviado, 3=Aceptado 4=Rechazado 5=En cola con error de envio
     protected $datos; // la informacion del comprobante
-    protected $situacion; // 1=Normal, 2=Contingencia, 3=Sin Internet
-    protected $estado; // el estado: 1=Pendiente, 2=Enviado, 3=Aceptado 4=Rechazado 5=Error
+    protected $xml; //XML del comprobante
+    protected $tipo; //E para emision, o R para recepcion
+    protected $id_comprobante; //id_emision o id_recepcion
 
     /**
-     * Constructor for the Comprobantes
+     * Constructor del comprobante
      * 
-     * @param array $container   El contenedor con los ajustes
-     * @param array $datos       Los datos del comprobante a crear
+     * @param array $container   El contenedor del facturador
+     * @param array $datos       Los datos del comprobante a crear o cargar
+     * @param int   $id          El ID unico de la empresa emisora
      * @param bool  $sinInternet True para un comprobante que se genero sin conexion
      */
-    public function __construct($container, $datos, $sinInternet = false)
+    public function __construct($container, $datos, $id, $sinInternet = false)
     {
         date_default_timezone_set('America/Costa_Rica');
-        if (isset($datos['NumeroConsecutivoReceptor'])) {
-            //Este es un mensaje de confirmacion
-            $id = ltrim($datos['NumeroCedulaReceptor'], '0');
-            $clave = $datos['Clave'];
-            $consecutivo = $datos['NumeroConsecutivoReceptor'];
-        } else {
-            //Es una factura
-            $id = $datos['Emisor']['Identificacion']['Numero'];
-            $consecutivo = $datos['NumeroConsecutivo'];
-        }
-        
-        $empresas = new Empresas($container);
-        if (!$empresas->exists($id)) {
-            throw new \Exception('El emisor no esta registrado');
-        };
-        $this->id = $id;
         $this->container = $container;
-        $this->container['id'] = $id;
-        $this->consecutivo = $consecutivo;
-        $this->tipo = substr($consecutivo, 8, 2);
-        if ($sinInternet) {
-            $this->situacion = 3; //Sin internet
-        } else {
-            $this->situacion = 1; //Normal
-        }
-        if (!isset($datos['Clave'])) {
-            $clave = $this->_generarClave();
-            $datos = array_merge(['Clave' => $clave], $datos);
-        }
-        $this->datos = $datos;    
-        if (isset($datos['InformacionReferencia'])) {
-            if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
-                $this->situacion = 2; //Contingencia
+
+        if (isset($datos['clave']) && isset($datos['tipo'])) {
+            //Cargar un comprobante que ya esta hecho
+            $clave = $datos['clave'];
+            $tipo = $datos['tipo']; //E para emision, o R para recepcion
+            if ($tipo === 'E') {
+                $tabla = 'fe_emisiones';
+                $id_name = 'id_emision';
+            } else {
+                $tabla = 'fe_recepciones';
+                $id_name = 'id_recepcion';
             }
+            
+            $db = $container['db'];
+
+            $stmt = $db->prepare("SELECT estado, $id_name FROM $tabla
+            WHERE clave=?");
+            $stmt->bind_param('s', $clave);
+            $result = $stmt->get_result();
+            if ($result->num_rows > 0) {
+                //Existe
+                $r = $result->fetch_row();
+                $this->estado = $r[0];
+                $this->id_comprobante = $r[1];
+                $this->consecutivo = substr($clave, 21, 20);
+                $this->clave = $clave;
+                $this->tipo = $tipo;
+                $this->id = $id;
+            } else {
+                return false;
+            }
+        } else {
+            //-------- Crear un nuevo comprobante --------
+            if (isset($datos['NumeroConsecutivoReceptor'])) {
+                //Crear un mensaje de confirmacion nuevo
+                $cedula = ltrim($datos['NumeroCedulaReceptor'], '0');
+                $clave = $datos['Clave'];
+                $this->consecutivo = $datos['NumeroConsecutivoReceptor'];
+                $this->tipo = 'R';
+            } else {
+                //Crear un comprobante nuevo
+                $cedula = $datos['Emisor']['Identificacion']['Numero'];
+                $this->consecutivo = $datos['NumeroConsecutivo'];
+                $this->tipo = 'E';
+            }
+
+            //---Revisar si el emisor esta guardado---
+            $empresas = new Empresas($container);
+            if (!$empresas->get($id)) {
+                throw new \Exception('El emisor no esta registrado');
+            };
+
+            //---Probar si enviaron consecutivo bueno---
+            if (strlen($this->consecutivo) !== 20) {
+                throw new \Exception('El consecutivo no tiene la correcta longitud');
+            }
+
+            //---Especificar la situacion---
+            if ($sinInternet) {
+                $situacion = 3; //Sin internet
+            } else {
+                $situacion = 1; //Normal
+            }   
+            if (isset($datos['InformacionReferencia'])) {
+                if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
+                    $situacion = 2; //Contingencia
+                }
+            }
+
+            //---Generar clave si no existe---
+            if (!isset($datos['Clave'])) {
+                //Generar la clave numerica
+                $pais = '506';
+                $fecha = date('dmy');
+                $cedula12 = str_pad($cedula, 12, '0', STR_PAD_LEFT);
+                $codigo = rand(10000000, 99999999);
+                $clave =  $pais . $fecha . $cedula12 . $this->consecutivo . $situacion . $codigo;
+                if (strlen($clave) !== 50) {
+                    throw new \Exception('La clave no tiene la correcta longitud');
+                }
+                $datos = array_merge(['Clave' => $clave], $datos);
+            }
+            $this->id = $id;
+            $this->datos = $datos; 
+            $this->estado = 0; //Comprobante sin guardar
+            $this->clave = $clave;
+            $this->tipo = \substr($clave, 30, 1);
+
+            //---Generar el xml de este comprobante
+            $this->container['id'] = $id; //Guardar el id de empresa
+            $creadorXml = new CreadorXML($this->container);
+            $this->xml = $creadorXml->crearXml($datos);
         }
-        $this->estado = 1; //Pendiente
-        //echo 'Clave: ' . $clave . "\n";//-----------------
-        $this->clave = $clave;
     }
 
     /**
-     * Procesador de envios
+     * Guardar el comprobante en la cola
+     * 
+     * @return bool
+     */
+    public function guardarEnCola()
+    {
+        if ($this->estado > 0) {
+            return false;
+        }
+        $db = $this->container['db'];
+        $storage_path = $this->container['storage_path'];
+        if ($storage_path == '') {
+            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+        }
+        $clave = $this->clave;
+        $this->estado = 1; //En cola
+        if ($this->tipo == 'R') {
+            $table = 'fe_recepciones';
+            $accion = 2; //ENVIAR_RECEPCION
+        } else {
+            $table = 'fe_emisiones';
+            $accion = 1; //ENVIAR_EMISION
+        }
+        $this->_generate_filenames($zip_path, $filename);
+
+        //Guardar el registro
+        $sql = "INSERT INTO $table (clave, id_empresa, estado)
+        VALUES ('$clave', '{$this->id}', '{$this->estado}')";
+        $db->query($sql);
+        $this->id_comprobante = $db->insert_id;
+
+        //Agregar a la cola
+        $timestamp = (new \DateTime())->getTimestamp();
+        $sql = "INSERT INTO fe_cola (id_empresa, clave, accion, tiempo_creado, tiempo_enviar)
+        VALUES ('{$this->id}', '$clave', $accion, $timestamp, $timestamp)";
+        $db->query($sql);
+
+        //Guardar el archivo XML
+        $zip = new \ZipArchive();
+        if ($zip->open($zip_path, \ZipArchive::CREATE) !== true) {
+            throw new \Exception("Fallo al abrir <$zip_path>\n");
+        }
+        $zip->addFromString($filename, $this->xml);
+        $zip->close();
+        return true;
+    }
+
+    /**
+     * Generar ruta de zip y de comprobante xml
+     * 
+     * @return bool true si se logra
+     */
+    private function _generate_filenames(&$path, &$filename)
+    {
+        $path = $this->container['storage_path'];
+        if ($path == '') {
+            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+        }
+        $clave = $this->clave;
+        $path .= "{$this->id}/";
+        if (!file_exists($path)) {
+            mkdir($path);
+        }
+        $path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+        if (!file_exists($path)) {
+            mkdir($path);
+        }
+
+        if ($this->tipo == 'R') {
+            $zip_name = 'R' . $clave . '.zip';
+            $tipo_doc = 'MR';
+        } else {
+            $zip_name = 'E' . $clave . '.zip';
+            $tipo_doc = substr($this->consecutivo, 9, 1) - 1;
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+        }
+        $path .= $zip_name;
+        $filename = $$tipo_doc . $clave . '.xml';
+    }
+
+    /**
+     * Cargar datos del xml guardado
+     * 
+     * @return bool true si se logra
+     */
+    private function _cargarDatosXml()
+    {
+        $this->_generate_filenames($zip_path, $filename);
+        //Abrir el archivo XML
+        $zip = new \ZipArchive();
+        if ($zip->open($zip_path) !== true) {
+            throw new \Exception("Fallo al abrir <$zip_path>\n");
+        }
+        if ($zip->locateName($filename) === true) {
+            //XML esta guardado
+            $this->xml = $zip->getFromName($filename);
+            $this->datos = Comprobante::analizarXML($this->xml);
+            $zip->close();
+            return true;
+        }
+        $zip->close();
+        return false;
+    }
+
+    /**
+     * Enviar el comprobante a Hacienda
      * 
      * @return bool
      */
     public function enviar()
     {
+        if ($this->estado == 0) {
+            //no se ha guardado todavia
+            $this->guardarEnCola();
+        }
+
+        if (!$this->$datos) {
+            $this->_cargarDatosXml();
+        }
         $datos = $this->datos;
-        $db = $this->container['db'];
-        $creadorXml = new CreadorXML($this->container);
-        $xml = $creadorXml->crearXml($datos);
 
-        if ($this->tipo <= 4) {
-            //Cogemos datos para una factura
-            $post = [
-                'clave' => $datos['Clave'],
-                'fecha' => $datos['FechaEmision'],
-                'emisor' => [
-                    'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
-                    'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
-                ]
-            ];
-            if (isset($datos['Receptor']['Identificacion'])) {
-                $post['receptor'] = [
-                    'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
-                    'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
-                ];
-            }
-        } else {
-            //Cogemos datos para un mensaje receptor
-            $xmlData = $this->container['xmlData'];
-            $receptor = $this->container['receptor'];
-            $tipoId = str_pad($receptor['tipo'], 2, '0', STR_PAD_LEFT);
-            $post = [
-                'clave' => $xmlData['Clave'],
-                'fecha' => $xmlData['FechaEmision'],
-                'emisor' => [
-                    'tipoIdentificacion' => $xmlData['Emisor']['Identificacion']['Tipo'],
-                    'numeroIdentificacion' => $xmlData['Emisor']['Identificacion']['Numero']
-                ],
-                'receptor' => [
-                    'tipoIdentificacion' => $tipoId,
-                    'numeroIdentificacion' => $receptor['id']
-                ]
-            ];
-        }
-        // Enviar el comprobante a Hacienda
-        
-        $callbackUrl = $this->container['callbackUrl'];
-        if ($callbackUrl) {
-             $post['callbackUrl'] = $callbackUrl;
-        }
-        if ($this->tipo > 4) {
-            $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
-            $callbackUrlRecepcion = $this->container['callbackUrlRecepcion'];
-            if ($callbackUrlRecepcion) {
-                $post['callbackUrl'] = $callbackUrlRecepcion;
-            }
-        }
-        $post['comprobanteXml'] = base64_encode($xml);
-
-        if (function_exists('pcntl_fork') && false) {
-            $pid = pcntl_fork();
-            if ($pid == -1 || $pid == 0) {
-                $send = true;
-            } else {
-                $send = false;
-            }
-        } else {
-            $send = true;
-        }
-        if ($send) {
-            //Somos el proceso nuevo creado o fallo la creacion de proceso nuevo
-            //$token = new Token($this->id, $this->container);
-            //$token = $token->getToken();
-            $token = false;
-            $estado = 1; //Pendiente
-            $msg = '';
-            $json = '';
+        $idEmpresa = $this->id;
+        $rateLimiter = $this->container['rate_limiter'];
+        if ($rateLimiter->canPost($idEmpresa)) {
+            //Intentar conseguir un token de acceso
+            $token = new Token($this->container, $idEmpresa);
             if ($token) {
-                // Hacer un envio solamente si logramos recibir un token
-                $sql  = "SELECT Ambientes.URI_API
-                FROM Ambientes
-                LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
-                WHERE Empresas.Cedula = $this->id";
-                $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
-                $client = new Client(
-                    ['headers' => ['Authorization' => 'bearer ' . $token]]
-                );
+                //Tenemos token, entonces intentamos hacer el envio
+                if ($this->tipo == 'E') {
+                    //Cogemos datos para una factura
+                    $clave = $datos['Clave'];
+                    $accion = 1; //enviar emision
+                    $table = 'fe_emisiones';
+                    $post = [
+                        'clave' => $clave,
+                        'fecha' => $datos['FechaEmision'],
+                        'emisor' => [
+                            'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
+                            'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
+                        ]
+                    ];
+                    if (isset($datos['Receptor']['Identificacion'])) {
+                        $post['receptor'] = [
+                            'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
+                            'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
+                        ];
+                    }
+                } else {
+                    //Cogemos datos para un mensaje receptor
+                    $xmlData = $this->container['xmlData'];
+                    $receptor = $this->container['receptor'];
+                    $tipoId = str_pad($receptor['tipo'], 2, '0', STR_PAD_LEFT);
+                    $clave = $xmlData['Clave'];
+                    $table = 'fe_recepciones';
+                    $accion = 2; //enviar recepcion
+                    $post = [
+                        'clave' => $clave,
+                        'fecha' => $xmlData['FechaEmision'],
+                        'emisor' => [
+                            'tipoIdentificacion' => $xmlData['Emisor']['Identificacion']['Tipo'],
+                            'numeroIdentificacion' => $xmlData['Emisor']['Identificacion']['Numero']
+                        ],
+                        'receptor' => [
+                            'tipoIdentificacion' => $tipoId,
+                            'numeroIdentificacion' => $receptor['id']
+                        ]
+                    ];
+                }
+                $callbackUrl = $this->container['callback_url'];
+                $callbackUrl .= "?token={$this->tipo}{$this->id_comprobante}";
+                if ($callbackUrl) {
+                    $post['callbackUrl'] = $callbackUrl;
+                }
+                if ($this->tipo == 'R') {
+                    $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
+                }
+                $post['comprobanteXml'] = base64_encode($this->xml);
 
+                $sql  = "SELECT a.uri_api FROM fe_ambientes a
+                LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente
+                WHERE e.id_empresa=$idEmpresa";
+                $uri = $this->container['db']->query($sql)->fetch_row()[0] . 'recepcion';
+                $client = new Client(
+                    [
+                        'headers' => ['Authorization' => 'bearer ' . $token]
+                    ]
+                );
+                $queries = [];
                 try {
                     $res = $client->post($uri, ['json' => $post]);
                     $code = $res->getStatusCode();
                     if ($code == 201 || $code == 202) {
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_202);
+                        $sql = "DELETE FROM fe_cola WHERE clave='$clave' AND accion=$accion";
+                        $this->container['db']->query($sql);
+                        $sql = "UPDATE $table SET estado=2 WHERE clave='$clave'";
+                        $this->container['db']->query($sql);
                         $this->estado = 2; //enviado
+                        $this->container['log']->debug("{$this->tipo}$clave enviado. Respuesta $code");
+                        return true;
                     }
                 } catch (Exception\ClientException $e) {
                     // a 400 level exception occured
-                    // cuando ocurre este error, el comprobante se guarda 
-                    // con el estado 5 para error, junto con el mensaje en msg.
                     $res = $e->getResponse();
-                    $msg = $res->getStatusCode() . ": ";
-                    $msg .= json_encode($res->getHeader('X-Error-Cause'));
-                    if (strrpos($msg, "ya") > 1) {
-                        //El comprobante ya se habia enviado
-                        $this->estado = 2;
-                        $msg = '';
+                    $code = $res->getStatusCode();
+                    $error = implode(', ', $res->getHeader('X-Error-Cause'));
+                    if ($code == '401' || $code == '403') {
+                        //Token expirado o mal formado
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
+                        $this->container['log']->warning("Respuesta $code al enviar {$this->tipo}$clave. Error: $error");
                     } else {
-                        $this->estado = 5; //error
+                        //Error de estructura
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
+                        $this->container['log']->error("Respuesta $code al enviar {$this->tipo}$clave. Error: $error");
                     }
+                    $this->_aplazar_envio();
                 } catch (Exception\ServerException $e) {
                     // a 500 level exception occured
-                    // Guardamos la informacion del post para enviarlo posteriormente
-                    $json = $db->real_escape_string(json_encode($post));
+                    $code = $e->getResponse()->getStatusCode();
+                    $this->container['log']->notice("Respuesta $code al enviar {$this->tipo}$clave.");
+                    $this->_aplazar_envio();
                 } catch (Exception\ConnectException $e) {
                     // a connection problem
-                    // Guardamos la informacion del post para enviarlo posteriormente
-                    $json = $db->real_escape_string(json_encode($post));
+                    $this->container['log']->notice("Error de conexion al enviar {$this->tipo}$clave.");
+                    $this->_aplazar_envio();
                 }
             } else {
-                //guardamos el post para poder hacerlo despues
-                $json = $db->real_escape_string(json_encode($post));
-            }
-            $xmldb = $db->real_escape_string(gzcompress($xml));
-            $cl = $this->clave;
-            if ($this->tipo <= 4) {
-                //Guardamos la factura
-                $sql = "INSERT INTO Emisiones
-                    (Clave, Cedula, Estado, msg, xmlFirmado, Respuesta) VALUES
-                    ('$cl', '$this->id', '$this->estado', '$msg', '$xmldb', '$json')";
-                    $db->query($sql);
-                return $cl;
-            } else {
-                //Guardamos el mensaje de confirmacion
-                $sql = "UPDATE Recepciones
-                            SET xmlConfirmacion='$xmldb',
-                                Estado='$this->estado',
-                                msg='$msg',
-                                Respuesta='$json'
-                            WHERE Clave='$cl'";
-                $db->query($sql);
-                return $this->estado;
+                //Fallo en coger token
+                return false;
             }
         } else {
-            //Somos el proceso padre
-            if ($this->tipo <= 4) {
-                return $this->clave;
-            } else {
-                return $this->estado;
+            //Limite exedido
+            return false;
+        }
+    }
+
+    /**
+     * Aplazar envio de comprobante
+     * 
+     * @return null
+     */
+    private function _aplazar_envio() {
+        //Coger intentos actuales
+        $clave = $this->clave;
+        $accion = $this->tipo == 'E' ? 1 : 2;
+        $sql = "SELECT intentos_envio FROM fe_cola WHERE clave='$clave' AND accion=$accion";
+        $intentos = $this->container['db']->query($sql)->fetch_row()[0];
+        $plazo = 28800; //por defecto 8 hrs
+        $plazos = [
+            300,   //5min
+            900,   //15min
+            2400,  //40min
+            3600,  //1hr
+            7200,  //2hrs
+            14400  //4hrs
+        ];
+        if (isset($plazos[$intentos])) {
+            $plazo = $plazos[$intentos];
+        }
+        $siguiente = (new \DateTime())->getTimestamp() + $plazo;
+        $intentos++;
+        $sql = "UPDATE fe_cola SET tiempo_enviar=$siguiente, intentos_envio=$intentos
+        WHERE clave='$clave' AND accion=$accion";
+        $this->container['db']->query($sql);
+    }
+
+    /**
+     * Guardar mensaje de Hacienda
+     * 
+     * @param string $xml El xml de respuesta de Hacienda
+     * 
+     * @return bool
+     */
+    public function guardarMensajeHacienda($xml)
+    {
+        $storage_path = $this->container['storage_path'];
+        if ($storage_path == '') {
+            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+        }
+
+        if ($this->id) {
+            $clave = $this->clave;
+
+            //Guardar el archivo
+            $storage_path .= "{$this->id}/";
+            $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+
+            $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
+            $filename .= $clave . '.xml';
+            $zip_name = $this->tipo . $clave . '.zip';
+
+            $zip = new \ZipArchive();
+            if ($zip->open($storage_path . $zip_name) !== true) {
+                throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
             }
+            $zip->addFromString($filename, $xml); //Lo reemplaza si ya existe
+            $zip->close();
+
+            //Guardar el estado
+            $datosXML = Comprobante::analizarXML($xml);
+            $mensaje = $datosXML['DetalleMensaje'];
+            $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+            $this->estado = $estado;
+
+            $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+            $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
+            $stmt = $this->container['db']->prepare($sql);
+            $stmt->bind_param('iss', $estado, $mensaje, $clave);
+            return $stmt->execute();
+        } else {
+            return false;
         }
     }
 
     /**
-     * Coger la clave
+     * Devuelve el detalle del mensaje que respondio Hacienda
      * 
-     * @return string La clave de este comprobante
+     * @return string
      */
-    public function cogerClave()
-    {
-        return $this->clave;
+    public function cogerDetalleMensaje() {
+        $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+        $sql = "SELECT mensaje FROM $table WHERE clave=? AND id_empresa=?";
+        $stmt = $this->container['db']->prepare($sql);
+        $stmt->bind-param('si', $this->clave, $this->id);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_row()[0];
     }
 
     /**
-     * Generador de clave numerica
+     * Leer los datos de un comprobante XML
      * 
-     * @return string La clave numerica
+     * @param string $xml El xml a leer
+     * 
+     * @return array El resultado
      */
-    private function _generarClave()
-    {
-        $luhn = LuhnAlgorithmFactory::create();
-        $pais = '506';
-        $fecha = date('dmy');
-        $cedula = str_pad($this->id, 12, '0', STR_PAD_LEFT);
-        $consecutivo = $this->consecutivo;
-        $situacion = $this->situacion;
-        $codigo = $luhn->calcCheckDigit(new Number($pais));
-        $codigo .= $luhn->calcCheckDigit(new Number($fecha));
-        $codigo .= $luhn->calcCheckDigit(new Number($cedula));
-        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 0, 3)));
-        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 3, 5)));
-        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, 8, 2)));
-        $codigo .= $luhn->calcCheckDigit(new Number(substr($consecutivo, -10)));
-        $codigo .= $luhn->calcCheckDigit(new Number($situacion));
-        $clave =  $pais . $fecha . $cedula . $consecutivo . $situacion . $codigo;
-        if (!(strlen($clave) === 50)) {
-            throw new \Exception('La clave no tiene la correcta longitud');
+    public static function analizarXML($xml) {
+
+        if ($xml == false) {
+            //No enviaron nada, entonces solo daria error
+            return false;
         }
-        return $clave;
+        //Eliminar la firma
+        $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
+        $encoding = mb_detect_encoding($xml, 'UTF-8, ISO-8859-1', true);
+        if ($encoding != 'UTF-8') {
+            //Lo codificamos de ISO-8859-1 a UTF-8
+            //para poder leer xmls generados incorrectamente
+            $xml = utf8_encode($xml);
+        }
+        //Coger el elemento root del comprobante
+        $st = stripos(substr($xml, 0, 10), 'xml');
+        $st = $st ? $st : 0;
+        $s = stripos($xml, '<', $st) + 1;
+        $e = stripos($xml, ' ', $s);
+        $root = substr($xml, $s, $e - $s);
+        
+        //Coger el namespace del comprobante
+        $s = stripos($xml, 'xmlns=') + 7;
+        $e = stripos($xml, '"', $s+10);
+        global $ns;
+        $ns = substr($xml, $s, $e - $s);
+        global $xmlns;
+        $xmlns = '{'.$ns.'}';
+        $service = new Service;
+
+        $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
+            return XmlReader::repeatKeyValue($reader, $GLOBALS['ns']);
+        };
+        $f_keyValue = function (\Sabre\Xml\Reader $reader) {
+            return \Sabre\Xml\Deserializer\keyValue($reader, $GLOBALS['ns']);
+        };
+        $f_detalleServicio = function (\Sabre\Xml\Reader $reader) {
+            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
+        };
+        $f_codigoParser = function (\Sabre\Xml\Reader $reader) {
+            return XmlReader::codigoParser($reader, $GLOBALS['ns']);
+        };
+
+        $service->elementMap = [
+            $xmlns.$root => $f_repeatKeyValue,
+            $xmlns.'Emisor' => $f_keyValue,
+            $xmlns.'Receptor' => $f_keyValue,
+            $xmlns.'Identificacion'  => $f_keyValue,
+            $xmlns.'Ubicacion' => $f_keyValue,
+            $xmlns.'Telefono' => $f_keyValue,
+            $xmlns.'Fax' => $f_keyValue,
+            $xmlns.'Impuesto' => $f_keyValue,
+            $xmlns.'ResumenFactura' => $f_keyValue,
+            $xmlns.'DetalleServicio' => $f_detalleServicio,
+            $xmlns.'LineaDetalle' => $f_repeatKeyValue,
+            $xmlns.'Codigo' => $f_codigoParser,
+            $xmlns.'Normativa' => $f_keyValue,
+            $xmlns.'Otros' => $f_keyValue
+        ];
+        return $service->parse($xml);
     }
 }

@@ -21,7 +21,7 @@ namespace Contica\Facturacion;
 use \Defuse\Crypto\Key;
 use \Sabre\Xml\Service;
 use \GuzzleHttp\Client;
-use Monolog\Logger;
+use \Monolog\Logger;
 
 /**
  * El proveedor de facturacion
@@ -40,28 +40,35 @@ class FacturadorElectronico
     /**
      * Invoicer constructor
      * 
-     * @param MySqli $db            Conexion a MySql, conectado a la tabla correspondiente
-     * @param string $crypto_key    Llave para utilizar en encriptado de datos en la BD
-     * @param int    $client_id     Id de cliente que accesa el sistema
+     * @param MySqli $db       Conexion a MySql, conectado a la tabla correspondiente
+     * @param array  $settings Llave para utilizar en encriptado de datos en la BD
      */
-    public function __construct($db, $crypto_key = '', $client_id = 0)
+    public function __construct($db, $settings = [])
     {
-
         // Initialize the container
-        $this->container = [
-            'db' => $db,
-            'crypto_key' => $crypto_key ? Key::loadFromAsciiSafeString($crypto_key) : '',
-            'client_id' => $client_id
-        ];
+        $container = array_merge([
+            'crypto_key' => '',
+            'client_id' => 0,
+            'storage_path' => '',
+            'callback_url' => ''
+        ], $settings);
+
+        $crypto_key = $container['crypto_key'];
+        $container['crypto_key'] = $crypto_key ? Key::loadFromAsciiSafeString($crypto_key) : '';
+        $container['db'] = $db;
+
         // Inicializar el logger
         $loglevel = Logger::INFO;
         $log = new Logger('facturador');
         $log->pushHandler(new MySqlLogger($db, $loglevel));
-        $this->container['log'] = $log;
+        $container['log'] = $log;
+        $container['rate_limiter'] = new RateLimiter($container);
+
+        $this->container = $container;
     }
 
     /**
-     * Especificar el id de cliente
+     * Especificar el id de cliente despues de crear objeto
      * 
      * @return null
      */
@@ -156,60 +163,90 @@ class FacturadorElectronico
      * Enviar compropbante al Ministerio de Hacienda
      * 
      * @param array $datos Los datos para construir el comprobante para enviar
+     * @param int   $id    El ID unico de la empresa emisora
      * 
      * @return string La clave numerica del comprobante
      */
-    public function enviarComprobante($datos)
+    public function enviarComprobante($datos, $id, $sinInternet = false )
     {
-        $comprobante = new Comprobante($this->container, $datos);
-        return $comprobante->enviar();       
+        $comprobante = new Comprobante($this->container, $datos, $id, $sinInternet);
+        if ($comprobante->guardarEnCola()) {
+            return $comprobante->clave;
+        } else {
+            return false;
+        }  
     }
 
     /**
-     * Procesar mensaje Hacienda
+     * Procesar el callback de Hacienda
      * 
      * @param string $cuerpo El cuerpo del POST de Hacienda
-     * @param int    $lugar  Emision o Recepcion
+     * @param int    $token  Token de identificacion
      * 
      * @return array Estado del comprobante enviado
      */
-    public function procesarMensajeHacienda($cuerpo, $lugar)
+    public function procesarCallbackHacienda($cuerpo, $token = '')
     {
-        $db = $this->container['db'];
+        $log = $this->container['log'];
         $cuerpo = json_decode($cuerpo, true);
         $ind_estado = strtolower($cuerpo['ind-estado']);
-        if ($ind_estado == 'recibido') {
-            $ind_estado = 'enviado';
-        }
         $clave = substr($cuerpo['clave'], 0, 50);
-        if ($this->estadoComprobanteRecibido($clave) == false) {
-            $table = 'Emisiones';
+        if ($token === '') {
+            if (isset($_REQUEST['token'])) {
+                //Conseguir el token del POST
+                $token = $_REQUEST['token'];
+            } else {
+                $log->error("Error al procesar callback de Hacienda para la clave $clave. No hay token de identificacion.");
+                throw new \Exception("No existe token para procesar el mensaje de Hacienda para la clave $clave");
+            }
+        }
+        $db = $this->container['db'];
+
+        //Verificar la validez del token
+        $tipo = strtoupper(substr($token, 0, 1));
+        if ($tipo == 'E') {
+            //Emision
+            $valido = true;
+            $tabla = 'fe_emisiones';
+            $col = 'id_emision';
+        } elseif ($tipo == 'R') {
+            //Recepcion
+            $valido = true;
+            $tabla = 'fe_recepciones';
+            $col = 'id_recepcion';
         } else {
-            $table = 'Recepciones';
+            $valido = false;
         }
-        if ($ind_estado == 'aceptado' || $ind_estado == 'rechazado') {
-            // Procesar el xml enviado
-            $xml = base64_decode($cuerpo['respuesta-xml']);
-            /*$file = fopen(__DIR__ . "/respuesta.xml", "w");
-            fwrite($file, $xml);
-            fclose($file);*/
-            $estado = ($ind_estado == 'aceptado') ? 3 : 4; //aceptado : rechazado
-            $xmldb = $db->real_escape_string(gzcompress($xml, 9));
-            $sql = "UPDATE $table 
-                    SET Estado=$estado, Respuesta='$xmldb' 
-                    WHERE Clave='$clave'";
-            $db->query($sql);
-            $parsedXml = $this->analizarComprobante($xml);
-            return [
-                'Clave' => $parsedXml['Clave'],
-                'Estado' => $ind_estado,
-                'Mensaje' => $parsedXml['DetalleMensaje'],
-                'Xml' => $xml
-            ];
+
+        if ($valido) {
+            //Validar el id
+            $sql = "SELECT id_empresa, COUNT(*) FROM $tabla WHERE $col=? AND clave=?";
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param('is', substr($token, 1), $clave);
+            $stmt->execute();
+            $r = $stmt->get_result()->fetch_row();
+            $id_empresa = $r[0];
+            $valido = $r[1] > 0;
         }
+
+        if (!$valido) {
+            $log->error("Error al procesar callback de Hacienda para la clave $clave. Token invalido.");
+            throw new \Exception("Token invalido al procesar callback de Hacienda para la clave $clave");
+        }
+
+        $log->debug("Guardando mensaje de respuesta de Hacienda. Clave: $tipo$clave");
+        $datos = [
+            'clave' => $clave,
+            'tipo' => $tipo
+        ];
+        $xml = base64_decode($cuerpo['respuesta-xml']);
+        $comprobante = new Comprobante($this->container, $datos, $id_empresa);
+        $comprobante->guardarMensajeHacienda($xml);
         return [
+            'Clave' => $clave,
             'Estado' => $ind_estado,
-            'Mensaje' => ''
+            'Mensaje' => $comprobante->cogerDetalleMensaje(),
+            'Xml' => $xml
         ];
     }
 
@@ -526,187 +563,27 @@ class FacturadorElectronico
     }
 
     /**
-     * Enviar los comprobantes pendientes en la base de datos
+     * Enviar los comprobantes en la cola de envio
      * 
-     * @param int $clupd La clave del que queremos actualizar, nada si mandar todo
-     * 
-     * @return array Clave => lugar con todos los que se enviaron
+     * @return array [clave => clave, tipo => E o R] con todos los que se enviaron
      */
-    public function enviarPendientes($clupd = false) 
+    public function enviarCola() 
     {
-        if ($clupd) {
-            $select = " AND Clave='$clupd'";
-        } else {
-            $select = '';
-        }
-
         $db = $this->container['db'];
-        $tables = ['Emisiones', 'Recepciones'];
+        $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
+        $sql = "SELECT * FROM fe_cola WHERE tiempo_enviar <= $timestamp AND accion < 3";
+        $res = $db->query($sql);
         $enviados = [];
-
-        foreach ($tables as $table) {
-            $lugar = $table == "Emisiones" ? 1 : 2;
-            $sqlr = "SELECT Clave, Cedula, Respuesta
-                    FROM $table
-                    WHERE Estado='1'$select
-                    LIMIT 1";
-            do {
-                $query = $db->query($sqlr);
-                if ($r = $query->fetch_assoc()) {
-                    $row = true;
-                    //Volvemos a enviar el comprobante
-                    $clave = $r['Clave'];
-                    $savedPost = $r['Respuesta'];
-                    $post = json_decode($savedPost, true);//El post que fue guardado
-                    $id = $r['Cedula'];
-                    $estado = 1;
-                    $tokens = new Token($id, $this->container);
-                    $token = $tokens->getToken();
-                    $msg = 'pendiente';
-                    if ($token && $savedPost) {
-                        // Hacer un envio solamente si logramos recibir un token
-                        // y el post se habia guardado
-                        $sql  = "SELECT Ambientes.URI_API
-                        FROM Ambientes
-                        LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente
-                        WHERE Empresas.Cedula = $id";
-                        $uri = $db->query($sql)->fetch_assoc()['URI_API'] . 'recepcion';
-                        $client = new Client(
-                            ['headers' => ['Authorization' => 'bearer ' . $token]]
-                        );
-                        try {
-                            $res = $client->post($uri, ['json' => $post]);
-                            $code = $res->getStatusCode();
-                            if ($code == 201 || $code == 202) {
-                                $estado = 2; //enviado
-                                $msg = '';
-                                $enviados[$clave] = $lugar;
-                            } else {
-                                $msg = "Codigo: " . $code;
-                            }
-                        } catch (\GuzzleHttp\Exception\ClientException $e) {
-                            // a 400 level exception occured
-                            // cuando ocurre este error, el comprobante se guarda 
-                            // con el estado 5 para error, junto con el mensaje en msg.
-                            $res = $e->getResponse();
-                            $msg = $res->getStatusCode() . ": ";
-                            $msg .= $res->getHeader('X-Error-Cause')[0];
-                            if (strrpos($msg, "ya") > 1) {
-                                //El comprobante ya se habia enviado
-                                $estado = 2;
-                                $msg = '';
-                            } else {
-                                $estado = 5; //error
-                            }
-                        } catch (\GuzzleHttp\Exception\ConnectException $e) {
-                            //No se pudo enviar
-                            $msg = "Sin conexión.";
-                            $row = false;                           
-                        } catch (\GuzzleHttp\Exception\ServerException $e) {
-                            //No se pudo enviar
-                            $msg = "Error de servidor.";
-                            $row = false;                           
-                        }
-                    } else {
-                        $msg = "Fallo en coger Token";
-                    }
-                    if ($estado == 1) {
-                        if ($token) {
-                            //No se pudo enviar cuando teniamos el token.
-                            //Dejamos de tratar.
-                            $row = false;
-                        } else {
-                            //Error al coger token
-                            //temporalmente lo deshabilitamos
-                            $estado = 9;
-                        }
-                    }
-                    //Guardar el resultado cuando se ha actualizado
-                    $sql = "UPDATE $table SET
-                        Estado='$estado',
-                        msg='$msg'
-                        WHERE Clave='$clave'";
-                    $db->query($sql);
-                } else {
-                    //No hay mas pendientes
-                    $row = false;
-                    //Volvemos los que no se enviaron a pendiente
-                    $sql = "UPDATE $table SET
-                        Estado='1'
-                        WHERE Estado='9'";
-                    $db->query($sql);
-                }
-            } while ($row == true);
+        while ($row = $res->fetch_assoc()) {
+            $datos = [
+                'clave' => $row['clave'],
+                'tipo' => $row['accion'] == 1 ? 'E' : 'R'
+            ];
+            $comprobante = new Comprobante($this->container, $datos, $row['id_empresa']);
+            if ($comprobante->enviar()) {
+                $enviados[] = $datos;
+            }
         }
         return $enviados;
-    }
-
-    /**
-     * Analizar xml de comprobante
-     * 
-     * @param string $xml El xml a analizar
-     * 
-     * @return array La informacion del xml
-     */
-    public function analizarComprobante($xml)
-    {
-        if ($xml == false) {
-            //No enviaron nada, entonces solo daria error
-            return false;
-        }
-        //Eliminar la firma
-        $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
-        $encoding = mb_detect_encoding($xml, 'UTF-8, ISO-8859-1', true);
-        if ($encoding != 'UTF-8') {
-            //Lo codificamos de ISO-8859-1 a UTF-8
-            //para poder leer xmls generados incorrectamente
-            $xml = utf8_encode($xml);
-        }
-        //Coger el elemento root del comprobante
-        $st = stripos(substr($xml, 0, 10), '?');
-        $st = $st ? 10 : 0;
-        $s = stripos($xml, '<', $st) + 1;
-        $e = stripos($xml, ' ', $s);
-        $root = substr($xml, $s, $e - $s);
-        
-        //Coger el namespace del comprobante
-        $s = stripos($xml, 'xmlns=') + 7;
-        $e = stripos($xml, '"', $s+10);
-        global $ns;
-        $ns = substr($xml, $s, $e - $s);
-        global $xmlns;
-        $xmlns = '{'.$ns.'}';
-        $service = new Service;
-
-        $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
-            return XmlReader::repeatKeyValue($reader, $GLOBALS['ns']);
-        };
-        $f_keyValue = function (\Sabre\Xml\Reader $reader) {
-            return \Sabre\Xml\Deserializer\keyValue($reader, $GLOBALS['ns']);
-        };
-        $f_detalleServicio = function (\Sabre\Xml\Reader $reader) {
-            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
-        };
-        $f_codigoParser = function (\Sabre\Xml\Reader $reader) {
-            return XmlReader::codigoParser($reader, $GLOBALS['ns']);
-        };
-
-        $service->elementMap = [
-            $xmlns.$root => $f_repeatKeyValue,
-            $xmlns.'Emisor' => $f_keyValue,
-            $xmlns.'Receptor' => $f_keyValue,
-            $xmlns.'Identificacion'  => $f_keyValue,
-            $xmlns.'Ubicacion' => $f_keyValue,
-            $xmlns.'Telefono' => $f_keyValue,
-            $xmlns.'Fax' => $f_keyValue,
-            $xmlns.'Impuesto' => $f_keyValue,
-            $xmlns.'ResumenFactura' => $f_keyValue,
-            $xmlns.'DetalleServicio' => $f_detalleServicio,
-            $xmlns.'LineaDetalle' => $f_repeatKeyValue,
-            $xmlns.'Codigo' => $f_codigoParser,
-            $xmlns.'Normativa' => $f_keyValue,
-            $xmlns.'Otros' => $f_keyValue
-        ];
-        return $service->parse($xml);
     }
 }

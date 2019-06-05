@@ -100,7 +100,41 @@ class Storage
                     ADD PRIMARY KEY (`id_empresa`),
                     ADD KEY `cliente` (`id_cliente`),
                     ADD KEY `id_ambiente` (`id_ambiente`)',
-            ]
+
+                'ALTER TABLE `fe_empresas`
+                    MODIFY `id_empresa` int(11) NOT NULL AUTO_INCREMENT;'
+            ], 
+            2 => "CREATE TABLE `fe_emisiones` (
+                    `id_emision` INT NOT NULL AUTO_INCREMENT ,
+                    `clave` CHAR(50) NOT NULL ,
+                    `id_empresa` INT NOT NULL ,
+                    `estado` TINYINT NOT NULL ,
+                    `mensaje` VARCHAR(512) NOT NULL ,
+                    PRIMARY KEY (`id_emision`),
+                    INDEX `estado` (`estado`),
+                    INDEX `clave` (`clave`))",
+                "CREATE TABLE `fe_cola` (
+                    `id_empresa` INT NOT NULL,
+                    `clave` CHAR(50) NOT NULL ,
+                    `accion` TINYINT NOT NULL ,
+                    `tiempo_creado` INT(11) NOT NULL ,
+                    `tiempo_enviar` INT(11) NOT NULL ,
+                    `intentos_envio` TINYINT NOT NULL ,
+                    `respuesta_envio` VARCHAR(31) NOT NULL
+                    , PRIMARY KEY (`clave`))",
+                "CREATE TABLE `fe_ratelimiting` (
+                    `cedula` CHAR(12) NOT NULL ,
+                    `regla` SMALLINT NOT NULL ,
+                    `tiempo` INT NOT NULL ,
+                    INDEX `cedula` (`cedula`))",
+                "CREATE TABLE `fe_tokens` (
+                    `cedula` CHAR(12) NOT NULL ,
+                    `id_ambiente` TINYINT NOT NULL ,
+                    `access_token` VARCHAR(2048) NOT NULL ,
+                    `expires_in` INT NOT NULL ,
+                    `refresh_token` VARCHAR(2048) NOT NULL ,
+                    `refresh_expires_in` INT NOT NULL ,
+                    INDEX `cedula` (`cedula`, `id_ambiente`))"
         ];
         foreach ($versions as $version => $statements) {
             if ($version > $current_version) {

@@ -2,28 +2,28 @@
 /**
  * Clase para modificar la clase que crea xmls
  *  
- * PHP version 7.1
+ * PHP version 7.3
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 /**
  * Todas los metodos para crear los archivos XML
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\CreadorXML
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion\XmlService
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class XmlService extends \Sabre\Xml\Service
 {

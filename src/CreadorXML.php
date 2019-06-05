@@ -5,27 +5,27 @@
  * PHP version 7.1
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
-use \Defuse\Crypto\Crypto;
+namespace Contica\Facturacion;
+
 use \Sabre\Xml\Writer;
 
 /**
  * Todas los metodos para crear los archivos XML
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\CreadorXML
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion\CreadorXML
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class CreadorXML
 {
@@ -33,22 +33,25 @@ class CreadorXML
     protected $privateKey;
     protected $modulus;
     protected $exponent;
+    protected $version;
 
     /**
      * Class constructor
      * 
      * @param array $container Container with settings
      */
-    public function __construct($container)
+    public function __construct($container, $version = '4.3')
     {
-        $db = $container['db'];
+        $empresas = new Empresas($container);
         $id = $container['id'];
-        $sql = "SELECT Certificado_mh, Pin_mh FROM Empresas WHERE Cedula=$id";
-        $result = $db->query($sql);
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $pin = Crypto::decrypt($row['Pin_mh'], $container['cryptoKey']);
-            openssl_pkcs12_read($row['Certificado_mh'], $key, $pin);
+        $this->version = $version;
+        if ($keys = $empresas->getCert($id)) {
+            $pin = $keys['pin'];
+            $cert = $keys['llave'];
+            $read = openssl_pkcs12_read($cert, $key, $pin);
+            if ($read == false) {
+                throw new \Exception('Error al abrir la llave criptografica.');
+            }
             $this->publicKey  = $key["cert"];
             $this->privateKey = $key["pkey"];
             $complem = openssl_pkey_get_details(
@@ -76,152 +79,69 @@ class CreadorXML
         } else {
             //Es una factura
             $consecutivo = $datos['NumeroConsecutivo'];
+            if (isset($datos['Normativa'])) {
+                //Version vieja
+                $this->version = '4.2';
+            }
         }
         $tipo = substr($consecutivo, 8, 2);
+        if ($this->version === '4.3') {
+            $ns = 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.3/';
+        } else {
+            $ns = 'https://tribunet.hacienda.go.cr/docs/esquemas/2017/v4.2/';
+        }
 
         switch ($tipo) {
         // Factura electronica
         case '01':
-            return $this->_crearFactura($datos);
+            $ns .= 'facturaElectronica';
+            $root_element = 'FacturaElectronica';
             break;
         // Nota de debito electronico
         case '02':
-            return $this->_crearNotaDebito($datos);
+            $ns .= 'notaDebitoElectronica';
+            $root_element = 'NotaDebitoElectronica';
             break;
         // Nota de credito electronico
         case '03':
-            return $this->_crearNotaCredito($datos);
+            $ns .= 'notaCreditoElectronica';
+            $root_element = 'NotaCreditoElectronica';
             break;
         // Tiquete electronico
         case '04':
-            return $this->_crearTiquete($datos);
+            $ns .= 'tiqueteElectronico';
+            $root_element = 'TiqueteElectronico';
             break;
         // Confirmacion de aceptacion del comprobante electronico
         case '05':
-            return $this->_crearMensajeReceptor($datos);
-            break;
         // Confirmacion de aceptacion parcial del comprobante electronico
         case '06':
-            return $this->_crearMensajeReceptor($datos);
-            break;
         // Confirmacion de rechazo del comprobante electronico
         case '07':
-            return $this->_crearMensajeReceptor($datos);
+            $ns .= 'mensajeReceptor';
+            $root_element = 'MensajeReceptor';
+            break;
+        // Factura electronica de compra
+        case '08':
+            $ns .= 'facturaElectronicaCompra';
+            $root_element = 'FacturaElectronicaCompra';
+            break;
+        // Factura electronica de exportacion
+        case '09':
+            $ns .= 'facturaElectronicaExportacion';
+            $root_element = 'FacturaElectronicaExportacion';
             break;
         // Quien sabe que mandaron
         default:
             return false;
         }
-    }
-
-    /**
-     * Creador del XML firmado para factura electronica
-     * 
-     * @param array $datos Los datos de la factura
-     * 
-     * @return string El contenido del XML firmado
-     */
-    private function _crearFactura($datos)
-    {
-        $ns = 'https://tribunet.hacienda.go.cr/'.
-            'docs/esquemas/2017/v4.2/facturaElectronica';
         $xmlService = new XmlService;
         $xmlService->namespaceMap = [
             'http://www.w3.org/2001/XMLSchema' => 'xsd',
             'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
             $ns => ''
         ];
-        
-        $xml = $xmlService->write('{' . $ns . '}' . 'FacturaElectronica', $datos);
-        return $this->_firmarXml($xml, $ns);
-    }
-
-    /**
-     * Creador del XML firmado para nota de debito electronica
-     * 
-     * @param array $datos Los datos de la nota de debito
-     * 
-     * @return string El contenido del XML firmado
-     */
-    private function _crearNotaDebito($datos)
-    {
-        $ns = 'https://tribunet.hacienda.go.cr/'.
-            'docs/esquemas/2017/v4.2/notaDebitoElectronica';
-        $xmlService = new XmlService;
-        $xmlService->namespaceMap = [
-            'http://www.w3.org/2001/XMLSchema' => 'xsd',
-            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
-            $ns => ''
-        ];
-        
-        $xml = $xmlService->write('{' . $ns . '}' . 'NotaDebitoElectronica', $datos);
-        return $this->_firmarXml($xml, $ns);
-    }
-
-    /**
-     * Creador del XML firmado para nota de credito electronica
-     * 
-     * @param array $datos Los datos de la nota de credito
-     * 
-     * @return string El contenido del XML firmado
-     */
-    private function _crearNotaCredito($datos)
-    {
-        $ns = 'https://tribunet.hacienda.go.cr/'.
-            'docs/esquemas/2017/v4.2/notaCreditoElectronica';
-        $xmlService = new XmlService;
-        $xmlService->namespaceMap = [
-            'http://www.w3.org/2001/XMLSchema' => 'xsd',
-            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
-            $ns => ''
-        ];
-        
-        $xml = $xmlService->write('{' . $ns . '}' . 'NotaCreditoElectronica', $datos);
-        return $this->_firmarXml($xml, $ns);
-    }
-
-    /**
-     * Creador del XML firmado para tiquete electronico
-     * 
-     * @param array $datos Los datos del tiquete
-     * 
-     * @return string El contenido del XML firmado
-     */
-    private function _crearTiquete($datos)
-    {
-        $ns = 'https://tribunet.hacienda.go.cr/'.
-            'docs/esquemas/2017/v4.2/tiqueteElectronico';
-        $xmlService = new XmlService;
-        $xmlService->namespaceMap = [
-            'http://www.w3.org/2001/XMLSchema' => 'xsd',
-            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
-            $ns => ''
-        ];
-        
-        $xml = $xmlService->write('{' . $ns . '}' . 'TiqueteElectronico', $datos);
-        return $this->_firmarXml($xml, $ns);
-    }
-
-
-    /**
-     * Creador del XML firmado para mensaje de confirmacion
-     * 
-     * @param array $datos Los datos del mensaje
-     * 
-     * @return string El contenido del XML firmado
-     */
-    private function _crearMensajeReceptor($datos)
-    {
-        $ns = 'https://tribunet.hacienda.go.cr/'.
-            'docs/esquemas/2017/v4.2/mensajeReceptor';
-        $xmlService = new XmlService;
-        $xmlService->namespaceMap = [
-            'http://www.w3.org/2001/XMLSchema' => 'xsd',
-            'http://www.w3.org/2001/XMLSchema-instance' => 'xsi',
-            $ns => ''
-        ];
-        
-        $xml = $xmlService->write('{' . $ns . '}' . 'MensajeReceptor', $datos);
+        $xml = $xmlService->write('{' . $ns . '}' . $root_element, $datos);
         return $this->_firmarXml($xml, $ns);
     }
 

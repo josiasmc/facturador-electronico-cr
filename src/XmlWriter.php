@@ -2,18 +2,18 @@
 /**
  * Clase para serializar los comprobantes
  *  
- * PHP version 7.1
+ * PHP version 7.3
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 use \Sabre\Xml\Service;
 
@@ -21,11 +21,11 @@ use \Sabre\Xml\Service;
  * Todas los metodos para crear los archivos XML
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion\CreadorXML
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion\XmlWriter
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
  * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class XmlWriter  extends \Sabre\Xml\Writer
 {

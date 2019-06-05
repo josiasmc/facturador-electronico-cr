@@ -5,18 +5,18 @@
  * Este controlador se encarga de conseguir y mantener
  * validos los tokens con el Ministerio de Hacienda
  * 
- * PHP version 7.1
+ * PHP version 7.3
  * 
  * @category  Facturacion-electronica
- * @package   Contica\eFacturacion
- * @author    Josias Martin <josiasmc@emypeople.net>
+ * @package   Contica\Facturacion
+ * @author    Josias Martin <josias@solucionesinduso.com>
  * @copyright 2018 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git.id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
-namespace Contica\eFacturacion;
+namespace Contica\Facturacion;
 
 use \GuzzleHttp\Client;
 use \Defuse\Crypto\Crypto;
@@ -25,52 +25,67 @@ use \Defuse\Crypto\Crypto;
  * Clase que contiene funciones para manejar tokens 
  * 
  * @category Facturacion-electronica
- * @package  Contica\eFacturacion
- * @author   Josias Martin <josiasmc@emypeople.net>
+ * @package  Contica\Facturacion
+ * @author   Josias Martin <josias@solucionesinduso.com>
  * @license  https://opensource.org/licenses/MIT MIT
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
+ * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Token
 {
-    protected $user_id;   //el usuario a la que pertenece el token
+    protected $container; //Contenedor de variables del componente
+    protected $id;        //el id de la empresa
+    protected $cedula;    //cedula de la empresa
+    protected $ambiente;  //ambiente con el cual funciona la empresa
     protected $db;        //la conexion a la base de datos
     protected $cryptoKey; //la llave para descifrar datos
+
+    const HTTP_TIMEOUT = 45; //timeout para usar en conexiones al IDP
 
     /**
      * Class constructor
      * 
-     * @param string $user_id   Id del usuario
      * @param array  $container Container con las dependencias
+     * @param string $id        Id de la empresa
      */
-    public function __construct($user_id, $container)
+    public function __construct($container, $id)
     {
-        $this->user_id = $user_id;
-        $this->db = $container['db'];
-        $this->cryptoKey = $container['cryptoKey'];
         date_default_timezone_set('America/Costa_Rica');
+        $this->id = $id;
+        $this->db = $container['db'];
+        $this->cryptoKey = $container['crypto_key'];
+        $this->container = $container;
+
+        //coger la cedula de la empresa
+        $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $r = $stmt->get_result()->fetch_row();
+        $this->cedula = $r[0];
+        $this->ambiente = $r[1];
     }
 
     /**
      * Funcion para retornar un token
      * 
-     * @return String False si no se logra
+     * @return String Access token, o false si hay un fallo
      */
     public function getToken()
     {
-        $id = $this->user_id;
-        $db = $this->db;
         //Revisar si hay una entrada en la base de datos
-        $sql = "SELECT * FROM Tokens WHERE Client_id=$id";
-        $result = $db->query($sql);
-        if ($row = $result->fetch_assoc()) {
+        $sql = "SELECT * FROM fe_tokens
+        WHERE cedula='{$this->cedula}' AND id_ambiente={$this->ambiente}";
+        $result = $this->db->query($sql);
+        if ($result->num_rows > 0) {
+            $row = $result->fetch_assoc();
             //Revisar si el token es valido
             if ($this->_validToken($row['expires_in'])) {
-                //token valido
+                //token existente es valido
                 return $row['access_token'];
             } else {
                 //Revisar si el refresh_token es valido
                 if ($this->_validToken($row['refresh_expires_in'])) {
-                    //token valido
+                    //refresh token es valido
                     return $this->_refreshToken($row['refresh_token']);
                 }
             }
@@ -86,30 +101,53 @@ class Token
      */
     private function _newToken()
     {
+        //Conseguir permiso para hacer el POST
+        $ratelimiter = $this->container['rate_limiter'];
+        if (!$ratelimiter->canGetToken($this->id)) {
+            //No existe permiso. Devolver.
+            return false;
+        }
+        $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_REQUEST);
         $data = $this->_getAccessDetails();
         if ($data) {
-            $uri = $data['URI_IDP'];
+            $uri = $data['uri_idp'];
             $params = [
                 'grant_type' => 'password',
-                'client_id' => $data['Client_id'],
-                'username' => $data['Usuario_mh'],
-                'password' => $data['Password_mh']
+                'client_id' => $data['client_id'],
+                'username' => $data['usuario_mh'],
+                'password' => $data['contra_mh']
             ];
             $client = new Client();
             try {
-                $response = $client->post($uri, ['form_params' => $params]);
+                $response = $client->post(
+                    $uri,
+                    [
+                        'form_params' => $params,
+                        'connect_timeout' => Token::HTTP_TIMEOUT
+                    ]
+                );
                 if ($response->getStatusCode()==200) {
+                    $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_200);
+                    $this->container['log']->debug("Token nuevo creado para {$this->cedula}");
                     $body = $response->getBody()->__toString();
                     $accessToken = $this->_saveToken($body);
                     return $accessToken;
                 }
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
+                //error de cliente
+                //Datos incorrectos de autenticacion
+                $this->container['log']->info("Fallo 40x consiguiendo token para {$this->cedula}");
+                $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_401_403);
+                return false;
             } catch (\GuzzleHttp\Exception\TransferException $e) {
                 //handles all exceptions
                 return false;
             }
             
+        } else {
+            //No se pudo conseguir la informacion de conexion de la empresa
+            return false;
         }
-        return false;
     }
 
     /**
@@ -121,35 +159,46 @@ class Token
      */
     private function _refreshToken($refreshToken)
     {
+        //Conseguir permiso para hacer el POST
+        $ratelimiter = $this->container['rate_limiter'];
+        if (!$ratelimiter->canGetToken($this->id)) {
+            //No existe permiso. Devolver.
+            return false;
+        }
+        $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_REQUEST);
         $data = $this->_getAccessDetails();
-        $id = $this->user_id;
         if ($data) {
-            $uri = $data['URI_IDP'];
+            $uri = $data['uri_idp'];
             $params = [
                 'grant_type' => 'refresh_token',
-                'client_id' => $data['Client_id'],
+                'client_id' => $data['client_id'],
                 'refresh_token' => $refreshToken
             ];
             $client = new Client();
             try {
-                $response = $client->post($uri, ['form_params' => $params]);
-                if ($response->getStatusCode()==200) {
+                $response = $client->post(
+                    $uri,
+                    [
+                        'form_params' => $params,
+                        'connect_timeout' => Token::HTTP_TIMEOUT
+                    ]
+                );
+                if ($response->getStatusCode() == 200) {
+                    $ratelimiter->registerTransaction($this->cedula, RateLimiter::IDP_200);
+                    $this->container['log']->debug("Token refrescado para {$this->cedula}");
                     $body = $response->getBody()->__toString();
                     $accessToken = $this->_saveToken($body);
                     return $accessToken;
                 }
             } catch (\GuzzleHttp\Exception\ClientException $e) {
                 //a 400 error
-                //lets erase the token and try to get a new one
-                $db = $this->db;
-                $sql = "DELETE FROM Tokens
-                        WHERE Client_id=$id";
+                $this->container['log']->info("Fallo 40x refrescando token para {$this->cedula}");
+                $ratelimiter->registerTransaction($this->cedula, RateLimiter::IDP_401_403);
                 return $this->_newToken();
             } catch (\GuzzleHttp\Exception\ConnectException $e) {
                 // a connection problem
                 return false;                
             }
-            
         }
         return false;
     }
@@ -163,37 +212,32 @@ class Token
      */
     private function _saveToken($body)
     {
-        $id = $this->user_id;
-        $db = $this->db;
         $data = json_decode($body, true);
         if (!is_array($data)) {
             return false;
         }        
-        $now = date_timestamp_get(date_create());
+        $now = (new \DateTime())->getTimestamp();
         //Revisar si ya hay un token guardado
-        $sql = "SELECT Client_id FROM Tokens WHERE Client_id=$id";
+        $sql = "SELECT COUNT(*) FROM fe_tokens
+        WHERE cedula='{$this->cedula}' AND id_ambiente={$this->ambiente}";
+        $hasToken = $this->db->query($sql)->fetch_row()[0];
+
         $ac = $data['access_token'];
         $ei = $data['expires_in'] + $now;
         $rt = $data['refresh_token'];
         $rei = $data['refresh_expires_in'] + $now;
-        $result = $db->query($sql);
-        if (is_object($result)) {
-            if ($result->num_rows) {
-                $sql = "UPDATE Tokens SET
-                    access_token='$ac',
-                    expires_in='$ei',
-                    refresh_token='$rt',
-                    refresh_expires_in='$rei'
-                    WHERE Client_id=$id";
-            } else {
-                $sql = "INSERT INTO Tokens VALUES
-                    ('$id', '$ac', '$ei', '$rt', '$rei')";
-            }
+        if ($hasToken) {
+            $sql = "UPDATE fe_tokens SET
+                access_token='$ac',
+                expires_in='$ei',
+                refresh_token='$rt',
+                refresh_expires_in='$rei'
+                WHERE cedula='{$this->cedula}' AND id_ambiente={$this->ambiente}";
         } else {
-            $sql = "INSERT INTO Tokens VALUES
-                ('$id', '$ac', '$ei', '$rt', '$rei')";
+            $sql = "INSERT INTO fe_tokens VALUES
+                ('{$this->cedula}', '{$this->ambiente}', '$ac', '$ei', '$rt', '$rei')";
         }
-        $db->query($sql);
+        $this->db->query($sql);
         return $ac;
     }
 
@@ -204,24 +248,26 @@ class Token
      */
     private function _getAccessDetails()
     {
-        $id = $this->user_id;
-        $sql  = "SELECT e.Usuario_mh, e.Password_mh,
-        a.Client_id, a.URI_IDP 
-        FROM Ambientes a
-        LEFT JOIN Empresas e ON e.Id_ambiente_mh = a.Id_ambiente 
-        WHERE e.Cedula='$id'";
+        $id = $this->id;
+        $sql  = "SELECT e.usuario_mh, e.contra_mh,
+        a.client_id, a.uri_idp
+        FROM fe_ambientes a
+        LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente 
+        WHERE e.id_empresa='$id'";
         $result = $this->db->query($sql);
-        if (is_object($result)) {
+        if ($result->num_rows > 0) {
             $data = $result->fetch_assoc();
             // Decrypt the encrypted entries
-            foreach (['Usuario_mh', 'Password_mh'] as $key) {
+            foreach (['usuario_mh', 'contra_mh'] as $key) {
                 if ($data[$key]) {
                     $data[$key] = Crypto::decrypt($data[$key], $this->cryptoKey);
                 }
             }
             return $data;
+        } else {
+            return false;
         }
-        return false;
+        
     }
 
     /**
@@ -233,11 +279,13 @@ class Token
      */
     private function _validToken($expires)
     {
-        $now = date_timestamp_get(date_create());
-        //Devuelve true si le queda mas que 5 segundos
-        if (((int)$expires-$now) > 5) {
+        $now = (new \DateTime())->getTimestamp();
+        //Devuelve true si le queda mas que 45 segundos
+        //45 segundos para tener tiempo con el API lento de Hacienda
+        if (((int)$expires-$now) > 45) {
             return true;
+        } else {
+            return false;
         }
-        return false;
     }
 }

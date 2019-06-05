@@ -166,7 +166,7 @@ class Empresas
             while ($data = $result->fetch_assoc()) {
                 if ($id != '') {
                     // Decrypt the encrypted entries
-                    foreach (['usuario', 'contra', 'pin'] as $key) {
+                    foreach (['usuario', 'contra'] as $key) {
                         if ($data[$key]) {
                             $data[$key] = Crypto::decrypt($data[$key], $cryptoKey);
                         }
@@ -180,19 +180,25 @@ class Empresas
     }
 
     /**
-     * Get the Ministerio de Hacienda certificate
+     * Coger la llave criptografica con el PIN de la empresa
      * 
-     * @param int $id The company's cedula
+     * @param int $id El id unico de la empresa
      * 
-     * @return string The certificate
+     * @return array El certificado con el pin
      */
     public function getCert($id)
     {
         $db = $this->container['db'];
-        $sql = "SELECT Certificado_mh FROM Empresas WHERE Cedula=$id";
+        $cryptoKey = $this->container['crypto_key'];
+
+        $sql = "SELECT llave_criptografica, pin_llave
+        FROM fe_empresas WHERE id_empresa=$id";
         $result = $db->query($sql);
         if ($result->num_rows > 0) {
-            return $result->fetch_assoc()['Certificado_mh'];
+            $r = $result->fetch_assoc();
+            $cert = $r['llave_criptografica'];
+            $pin = Crypto::decrypt($r['pin_llave'], $cryptoKey);
+            return ['llave' => $cert, 'pin' => $pin];
         }
         return false;
     }
