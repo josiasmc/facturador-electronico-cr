@@ -225,7 +225,7 @@ class Comprobante
             $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
         }
         $path .= $zip_name;
-        $filename = $$tipo_doc . $clave . '.xml';
+        $filename = $tipo_doc . $clave . '.xml';
     }
 
     /**
@@ -336,8 +336,9 @@ class Comprobante
                     ]
                 );
                 $queries = [];
+                $post = json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 try {
-                    $res = $client->post($uri, ['json' => $post]);
+                    $res = $client->post($uri, ['json' => $post]);//Cambiar a que no convierte json
                     $code = $res->getStatusCode();
                     if ($code == 201 || $code == 202) {
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_202);

@@ -104,7 +104,7 @@ class Storage
                 'ALTER TABLE `fe_empresas`
                     MODIFY `id_empresa` int(11) NOT NULL AUTO_INCREMENT;'
             ], 
-            2 => "CREATE TABLE `fe_emisiones` (
+            2 => ["CREATE TABLE `fe_emisiones` (
                     `id_emision` INT NOT NULL AUTO_INCREMENT ,
                     `clave` CHAR(50) NOT NULL ,
                     `id_empresa` INT NOT NULL ,
@@ -135,6 +135,22 @@ class Storage
                     `refresh_token` VARCHAR(2048) NOT NULL ,
                     `refresh_expires_in` INT NOT NULL ,
                     INDEX `cedula` (`cedula`, `id_ambiente`))"
+            ],
+            3 => [
+                "CREATE TABLE `fe_recepciones` (
+                    `id_recepcion` int(11) NOT NULL,
+                    `clave` char(50) NOT NULL,
+                    `id_empresa` int(11) NOT NULL,
+                    `estado` tinyint(4) NOT NULL,
+                    `mensaje` varchar(512) NOT NULL
+                )",
+                "ALTER TABLE `fe_recepciones`
+                    ADD PRIMARY KEY (`id_recepcion`),
+                    ADD KEY `CLAVE` (`clave`),
+                    ADD KEY `EMPRESA` (`id_empresa`)",
+                "ALTER TABLE `fe_recepciones`
+                  MODIFY `id_recepcion` int(11) NOT NULL AUTO_INCREMENT"
+            ]
         ];
         foreach ($versions as $version => $statements) {
             if ($version > $current_version) {
