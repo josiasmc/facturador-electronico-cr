@@ -58,7 +58,7 @@ class FacturadorElectronico
         $container['db'] = $db;
 
         // Inicializar el logger
-        $loglevel = Logger::INFO;
+        $loglevel = Logger::DEBUG;
         $log = new Logger('facturador');
         $log->pushHandler(new MySqlLogger($db, $loglevel));
         $container['log'] = $log;
@@ -243,10 +243,11 @@ class FacturadorElectronico
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
         $comprobante->guardarMensajeHacienda($xml);
         return [
-            'Clave' => $clave,
-            'Estado' => $ind_estado,
-            'Mensaje' => $comprobante->cogerDetalleMensaje(),
-            'Xml' => $xml
+            'clave' => $clave,
+            'tipo' => $tipo,
+            'estado' => $ind_estado,
+            'mensaje' => $comprobante->cogerDetalleMensaje(),
+            'xml' => $xml //XML de respuesta de hacienda
         ];
     }
 
@@ -286,280 +287,152 @@ class FacturadorElectronico
     }
 
     /**
-     * Revisar estado de comprobante
+     * Consultar el estado de un comprobante
      * 
-     * @param string $clave La clave del comprobante
-     * 
-     * @return int El estado (1:pendiente, 2:enviado, 3: aceptado, 4:rechazado)
-     */
-    function estadoComprobante($clave) 
-    {   
-        $db = $this->container['db'];
-        $sql = "SELECT Estado
-                FROM Emisiones
-                WHERE Clave='$clave'";
-        $res = $db->query($sql);
-        if ($res) {
-            $res = $res->fetch_assoc();
-            return $res['Estado'];
-        } else {
-            return false; //La clave no existe en la base de datos
-        }
-    }
-
-    /**
-     * Revisar estado de comprobante
-     * 
-     * @param string $clave La clave del comprobante
-     * 
-     * @return int El estado (1:pendiente, 2:enviado, 3: aceptado, 4:rechazado)
-     */
-    function estadoComprobanteRecibido($clave) 
-    {   
-        $db = $this->container['db'];
-        $sql = "SELECT Estado
-                FROM Recepciones
-                WHERE Clave='$clave'";
-        $res = $db->query($sql);
-        if ($res) {
-            $res = $res->fetch_assoc();
-            return $res['Estado'];
-        } else {
-            return false; //La clave no existe en la base de datos
-        }
-        
-        
-    }
-
-    /**
-     * Interrogar estado de comprobante en Hacienda
-     * 
-     * @param string $clave La clave del comprobante a interrogar 
-     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
+     * @param string $clave      La clave del comprobante a interrogar 
+     * @param int    $tipo       E para Emisiones, R para Recepciones
+     * @param int    $id_empresa ID unico de empresa
      * 
      * @return array El resultado
      */
-    public function interrogarRespuesta($clave, $lugar)
+    public function consultarEstado($clave, $tipo, $id_empresa)
     {
         $db = $this->container['db'];
-        $consecutivo = false;
-        if ($lugar == 1) {
-            $estado = $this->estadoComprobante($clave);
-            $table = 'Emisiones';
-        } else if ($lugar == 2) {
-            $table = 'Recepciones';
-            $estado = $this->estadoComprobanteRecibido($clave);
-            $xml = $this->cogerXmlConfirmacion($clave);
-            if ($xml) {
-                $consecutivo = $this->analizarComprobante($xml)['NumeroConsecutivoReceptor'];
-            } else {
-                return false;
+        $datos = [
+            'clave' => $clave,
+            'tipo' => $tipo
+        ];
+        $comprobante = new Comprobante($this->container, $datos, $id_empresa);
+        $estado = $comprobante->estado;
+        
+        if ($estado > 2) {
+            //ya tenemos la respuesta de Hacienda en la base de datos
+            $xml = $comprobante->cogerXmlRespuesta();
+
+        } else if ($estado == 2) {
+            //comprobante esta enviado
+            $comprobante->consultarEstado();
+            $estado = $comprobante->estado;
+            if ($xml = $comprobante->cogerXmlRespuesta()) {
+                $xml = '';
             }
+
+        } else if ($estado == 1) {
+            // ni siquiera se ha enviado
+            $comprobante->enviar();
+            $estado = $comprobante->estado;
+            $xml = '';
+        }
+        $estado = array('pendiente', 'enviado', 'aceptado', 'rechazado')[$estado - 1];
+        return [
+            'clave' => $clave,
+            'estado' => $estado,
+            'mensaje' => $comprobante->cogerDetalleMensaje(),
+            'xml' => $xml //xml de confirmacion de Hacienda
+        ];
+
+    }
+
+    /**
+     * Coger XML
+     * 
+     * @param string $clave La clave del comprobante
+     * @param string $lugar E o R
+     * @param int    $tipo  Cual xml
+     * @param int    $id    ID empresa
+     * 
+     * @return string Contenido del xml o false si no se halla
+     */
+    public function cogerXml($clave, $lugar, $tipo, $id)
+    {
+        //Revisar si concuerda clave con empresa
+        $db = $this->container['db'];
+        if ($lugar == 'E') {
+            //Emision
+            $tabla = 'fe_emisiones';
+            $col = 'id_emision';
+        } elseif ($lugar == 'R') {
+            //Recepcion
+            $tabla = 'fe_recepciones';
+            $col = 'id_recepcion';
         } else {
             return false;
         }
-        if ($estado === false) {
+        $sql = "SELECT estado FROM $tabla WHERE clave=$clave AND id_empresa=$id";
+        $res = $db->query($sql);
+        if ($res->num_rows > 0) {
+            $estado = $res->fetch_row()[0];
+            if (($tipo == 2 && $estado < 3 && $lugar == 'E')) {
+                //No existe respuesta para emision
+                return false;
+            } elseif (($tipo == 4 && $estado < 3 && $lugar == 'R')) {
+                //No existe respuesta para recepcion
+                return false;
+            }
+            //Conseguir el archivo
+            $storage_path = $this->container['storage_path'];
+            $storage_path .= "$id/";
+            $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+
+            $zip_name = $lugar . $clave . '.zip';
+            if ($tipo == 2) {
+                $tipo_doc = 'MH';
+            } elseif ($tipo == 4) {
+                $tipo_doc = 'MHMR';
+            } else {
+                $tipo_doc = substr($clave, 30, 1) - 1;
+                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MH', 'MH', 'MH', 'FEC', 'FEE'][$tipo_doc];
+            }
+            $filename = $tipo_doc . $clave . '.xml';
+
+            $zip = new \ZipArchive();
+            if ($zip->open($storage_path . $zip_name) !== true) {
+                throw new \Exception("Fallo al abrir <$zip_name> abriendo MR\n");
+            }
+
+            if ($zip->locateName($filename) !== false) {
+                //XML esta guardado
+                $xml = $zip->getFromName($filename);
+            } else {
+                return false;
+            }
+            $zip->close();
+            return $xml;
+
+        } else {
             return false;
         }
-        if ($estado == 5) {
-            $sql = "SELECT msg
-            FROM $table
-            WHERE Clave='$clave'";
-            $msg = $db->query($sql)->fetch_assoc()['msg'];
-            return [
-                'Clave' => $data['Clave'],
-                'Estado' => 'error',
-                'Mensaje' => $msg,
-            ];
-        } else if ($estado > 2) {
-            //ya tenemos la respuesta de Hacienda en la base de datos
-            $estado = ($estado == 3) ? 'aceptado' : 'rechazado'; //aceptado : rechazado
-            $sql = "SELECT Respuesta
-            FROM $table
-            WHERE Clave='$clave'";
-            $xml = gzuncompress($db->query($sql)->fetch_assoc()['Respuesta']);
-            $data = $this->analizarComprobante($xml);
-            return [
-                'Clave' => $data['Clave'],
-                'Estado' => $estado,
-                'Mensaje' => $data['DetalleMensaje'],
-                'Xml' => $xml
-            ];
-        } else if ($estado == 2) {
-            // vamos a interrogar a Hacienda
-            $sql = "SELECT Cedula FROM $table WHERE Clave='$clave'";
-            $id = $db->query($sql)->fetch_assoc()['Cedula'];
-            $token = new Token($id, $this->container);
-            $token = $token->getToken();
-            if ($token) {
-                $client = new Client(
-                    ['headers' => ['Authorization' => 'bearer ' . $token]]
-                );
-                $sql  = 'SELECT Ambientes.URI_API '.
-                            'FROM Ambientes '.
-                            'LEFT JOIN Empresas ON Empresas.Id_ambiente_mh = Ambientes.Id_ambiente '.
-                            'WHERE Empresas.Cedula=' . $id;
-                $url = $db->query($sql)->fetch_assoc()['URI_API'] . "recepcion/$clave";
-                if ($consecutivo) {
-                    $url .= "-$consecutivo";
-                }
-                try {
-                    $res = $client->request('GET', $url);
-                    if ($res->getStatusCode() == 200) {
-                        $body = $res->getBody();
-                        return $this->procesarMensajeHacienda($body);
-                    } else {
-                        // ocurrio un error
-                        return false;
-                    }
-                } catch (\GuzzleHttp\Exception\ClientException $e) {
-                    $res = $e->getResponse();
-                    $mensaje = $res->getHeader('X-Error-Cause')[0];
-                    if (strrpos($msg, "no ") > 1) {
-                        //El comprobante no ha sido enviado
-                        $estado = 1;
-                        $est = "enviado";
-                    } else {
-                        $estado = 5; //error
-                        $est = "error";
-                    }
-                    $sql = "UPDATE $table 
-                        SET Estado=$estado, msg='$mensaje' 
-                        WHERE Clave='$clave'";
-                    $db->query($sql);
-                    return [
-                        'Clave' => $data['Clave'],
-                        'Estado' => $est,
-                        'Mensaje' => $mensaje,
-                    ];
-                }
-                
-            }
-            // No se pudo actualizar
-            $estados = ['pendiente', 'enviado', 'aceptado', 'rechazado', 'error'];
-            $estado = $estados[$estado - 1];
-            return [
-                'Clave' => $clave,
-                'Estado' => $estado,
-                'Mensaje' => ''
-            ];
-        } else if ($estado == 1) {
-            // ni siquiera se ha enviado
-            $this->enviarPendientes($clave);
-            if ($lugar == 1) {
-                $estado = $this->estadoComprobante($clave);
-            } else if ($lugar == 2) {
-                $estado = $this->estadoComprobanteRecibido($clave);
-            }
-            $estado = array('pendiente', 'enviado', 'aceptado', 'rechazado', 'error')[$estado - 1];
-            return [
-                'Clave' => $clave,
-                'Estado' => $estado,
-                'Mensaje' => ''
-            ];
-        }
-
-    }
-
-    /**
-     * Coger el xml de un comprobante
-     * 
-     * @param string $clave La clave del comprobante
-     * 
-     * @return string El contenido del archivo xml
-     */
-    public function cogerXmlComprobante($clave) 
-    {
-        $db = $this->container['db'];
-        $sql = "SELECT xmlFirmado
-        FROM Emisiones
-        WHERE Clave='$clave'";
-        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlFirmado']);
-        return $xml;
-    }
-
-    /**
-     * Coger el xml de confirmacion de un comprobante recibido
-     * 
-     * @param string $clave La clave del comprobante recibido
-     * 
-     * @return string El contenido del archivo xml de confirmacion
-     */
-    public function cogerXmlConfirmacion($clave) 
-    {
-        $db = $this->container['db'];
-        $sql = "SELECT xmlConfirmacion
-        FROM Recepciones
-        WHERE Clave='$clave'";
-        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlConfirmacion']);
-        return $xml;
-    }
-
-    /**
-     * Coger el xml de un comprobante recibido
-     * 
-     * @param string $clave La clave del comprobante recibido
-     * 
-     * @return string El contenido del archivo xml recibido
-     */
-    public function cogerXmlRecepcion($clave) 
-    {
-        $db = $this->container['db'];
-        $sql = "SELECT xmlRecibido
-        FROM Recepciones
-        WHERE Clave='$clave'";
-        $xml = gzuncompress($db->query($sql)->fetch_assoc()['xmlRecibido']);
-        return $xml;
     }
 
     /**
      * Coger el msg de un comprobante
      * 
      * @param string $clave La clave del comprobante recibido
-     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
+     * @param int    $tipo  E para Emisiones, R para Recepciones
      * 
-     * @return string El contenido del archivo xml de confirmacion
+     * @return string El mensaje que Hacienda devolvio con el xml
      */
-    public function cogerMsg($clave, $lugar) 
+    public function cogerMsg($clave, $tipo) 
     {
-        if ($lugar == 1) {
-            $table = 'Emisiones';
-        } else if ($lugar == 2) {
-            $table = 'Recepciones';
+        if ($tipo == 'E') {
+            //Emision
+            $valido = true;
+            $tabla = 'fe_emisiones';
+            $col = 'id_emision';
+        } elseif ($tipo == 'R') {
+            //Recepcion
+            $valido = true;
+            $tabla = 'fe_recepciones';
+            $col = 'id_recepcion';
         } else {
             return false;
         }
         $db = $this->container['db'];
-        $sql = "SELECT msg
-        FROM $table
-        WHERE Clave='$clave'";
-        $msg = $db->query($sql)->fetch_assoc()['msg'];
+        $sql = "SELECT mensaje
+        FROM $tabla
+        WHERE clave='$clave'";
+        $msg = $db->query($sql)->fetch_assoc()['mensaje'];
         return $msg;
-    }
-
-    /**
-     * Coger el xml de respuesta de un comprobante
-     * 
-     * @param string $clave La clave del comprobante
-     * @param int    $lugar 1 para Emisiones, 2 para Recepciones
-     * 
-     * @return string El contenido del mensaje de respuesta
-     */
-    public function cogerXmlRespuesta($clave, $lugar) 
-    {
-        if ($lugar == 1) {
-            $table = 'Emisiones';
-        } else if ($lugar == 2) {
-            $table = 'Recepciones';
-        } else {
-            return false;
-        }
-        $db = $this->container['db'];
-        $sql = "SELECT Respuesta
-        FROM $table
-        WHERE Clave='$clave'";
-        $xml = gzuncompress($db->query($sql)->fetch_assoc()['Respuesta']);
-        return $xml;
     }
 
     /**

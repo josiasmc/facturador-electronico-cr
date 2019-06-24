@@ -18,6 +18,7 @@ namespace Contica\Facturacion;
 use \GuzzleHttp\Client;
 use \GuzzleHttp\Exception;
 use \GuzzleHttp\Psr7;
+use \Sabre\Xml\Service;
 
 /**
  * Class providing functions to manage electronic invoices
@@ -32,13 +33,16 @@ use \GuzzleHttp\Psr7;
 class Comprobante
 {
     protected $container;
-    protected $id; //ID unico de la empresa
-    public $clave; // clave del comprobante
-    public $estado; // estado: 1=En cola, 2=Enviado, 3=Aceptado 4=Rechazado 5=En cola con error de envio
+    protected $id;    //ID unico de la empresa
+    public $clave;    // clave del comprobante
+    public $estado;   // estado: 1=En cola, 2=Enviado, 3=Aceptado 4=Rechazado 5=En cola con error de envio
     protected $datos; // la informacion del comprobante
-    protected $xml; //XML del comprobante
-    protected $tipo; //E para emision, o R para recepcion
+    protected $xml;   //XML del comprobante
+    protected $tipo;  //E para emision, o R para recepcion
     protected $id_comprobante; //id_emision o id_recepcion
+
+    const EMISION = 1;   //Comprobante de emision
+    const RECEPCION = 2; //Compbrobante de recepcion
 
     /**
      * Constructor del comprobante
@@ -70,6 +74,7 @@ class Comprobante
             $stmt = $db->prepare("SELECT estado, $id_name FROM $tabla
             WHERE clave=?");
             $stmt->bind_param('s', $clave);
+            $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
                 //Existe
@@ -218,11 +223,11 @@ class Comprobante
 
         if ($this->tipo == 'R') {
             $zip_name = 'R' . $clave . '.zip';
-            $tipo_doc = 'MR';
+            $tipo_doc = 'MH';
         } else {
             $zip_name = 'E' . $clave . '.zip';
             $tipo_doc = substr($this->consecutivo, 9, 1) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MH', 'MH', 'MH', 'FEC', 'FEE'][$tipo_doc];
         }
         $path .= $zip_name;
         $filename = $tipo_doc . $clave . '.xml';
@@ -241,7 +246,7 @@ class Comprobante
         if ($zip->open($zip_path) !== true) {
             throw new \Exception("Fallo al abrir <$zip_path>\n");
         }
-        if ($zip->locateName($filename) === true) {
+        if ($zip->locateName($filename) !== false) {
             //XML esta guardado
             $this->xml = $zip->getFromName($filename);
             $this->datos = Comprobante::analizarXML($this->xml);
@@ -264,16 +269,15 @@ class Comprobante
             $this->guardarEnCola();
         }
 
-        if (!$this->$datos) {
+        if (!$this->datos) {
             $this->_cargarDatosXml();
         }
         $datos = $this->datos;
-
         $idEmpresa = $this->id;
         $rateLimiter = $this->container['rate_limiter'];
         if ($rateLimiter->canPost($idEmpresa)) {
             //Intentar conseguir un token de acceso
-            $token = new Token($this->container, $idEmpresa);
+            $token = (new Token($this->container, $idEmpresa))->getToken();
             if ($token) {
                 //Tenemos token, entonces intentamos hacer el envio
                 if ($this->tipo == 'E') {
@@ -317,13 +321,14 @@ class Comprobante
                     ];
                 }
                 $callbackUrl = $this->container['callback_url'];
-                $callbackUrl .= "?token={$this->tipo}{$this->id_comprobante}";
                 if ($callbackUrl) {
+                    $callbackUrl .= "?token={$this->tipo}{$this->id_comprobante}";
                     $post['callbackUrl'] = $callbackUrl;
                 }
                 if ($this->tipo == 'R') {
                     $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
                 }
+                fwrite(fopen('php://stderr', 'w'), \json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
                 $post['comprobanteXml'] = base64_encode($this->xml);
 
                 $sql  = "SELECT a.uri_api FROM fe_ambientes a
@@ -332,13 +337,16 @@ class Comprobante
                 $uri = $this->container['db']->query($sql)->fetch_row()[0] . 'recepcion';
                 $client = new Client(
                     [
-                        'headers' => ['Authorization' => 'bearer ' . $token]
+                        'headers' => [
+                            'Authorization' => 'bearer ' . $token,
+                            'Content-type' => 'application/json'
+                            ]
                     ]
                 );
                 $queries = [];
                 $post = json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 try {
-                    $res = $client->post($uri, ['json' => $post]);//Cambiar a que no convierte json
+                    $res = $client->post($uri, ['body' => $post]);
                     $code = $res->getStatusCode();
                     if ($code == 201 || $code == 202) {
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_202);
@@ -350,6 +358,7 @@ class Comprobante
                         $this->container['log']->debug("{$this->tipo}$clave enviado. Respuesta $code");
                         return true;
                     }
+                    return false;
                 } catch (Exception\ClientException $e) {
                     // a 400 level exception occured
                     $res = $e->getResponse();
@@ -375,6 +384,7 @@ class Comprobante
                     $this->container['log']->notice("Error de conexion al enviar {$this->tipo}$clave.");
                     $this->_aplazar_envio();
                 }
+                return false;
             } else {
                 //Fallo en coger token
                 return false;
@@ -383,6 +393,130 @@ class Comprobante
             //Limite exedido
             return false;
         }
+    }
+
+    /**
+     * Consultar estado de comprobante en Hacienda
+     * 
+     * @return bool
+     */
+    public function consultarEstado()
+    {
+        if ($this->estado < 2) {
+            //no se ha enviado todavia
+            return false;
+        }
+
+        $idEmpresa = $this->id;
+        $rateLimiter = $this->container['rate_limiter'];
+        if ($rateLimiter->canPost($idEmpresa)) {
+            //Intentar conseguir un token de acceso
+            $token = (new Token($this->container, $idEmpresa))->getToken();
+            if ($token) {
+                $consecutivo = false;
+                $clave = $this->clave;
+
+                $client = new Client(
+                    ['headers' => ['Authorization' => 'bearer ' . $token]]
+                );
+                $sql  = "SELECT a.uri_api FROM fe_ambientes a
+                LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente
+                WHERE e.id_empresa=$idEmpresa";
+                $uri = $this->container['db']->query($sql)->fetch_row()[0] . "recepcion/$clave";
+                if ($consecutivo) {
+                    $url .= "-$consecutivo";
+                }
+
+                try {
+                    $res = $client->request('GET', $uri);
+                    if ($res->getStatusCode() == 200) {
+                        $body = $res->getBody();
+                        $token = $this->tipo . $this->id_comprobante;
+                        
+                        $cuerpo = json_decode($body, true);
+                        $xml = base64_decode($cuerpo['respuesta-xml']);
+                        $this->guardarMensajeHacienda($xml);
+                        return true;
+                    } else {
+                        // ocurrio un error
+                        return false;
+                    }
+                } catch (Exception\ClientException $e) {
+                    // a 400 level exception occured
+                    $res = $e->getResponse();
+                    $code = $res->getStatusCode();
+                    $error = implode(', ', $res->getHeader('X-Error-Cause'));
+                    if ($code == '401' || $code == '403') {
+                        //Token expirado o mal formado
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
+                        $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                    } else {
+                        //Error de estructura
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
+                        $this->container['log']->error("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                    }
+                } catch (Exception\ServerException $e) {
+                    // a 500 level exception occured
+                    $code = $e->getResponse()->getStatusCode();
+                    $this->container['log']->notice("Respuesta $code al consultar estado de {$this->tipo}$clave.");
+                } catch (Exception\ConnectException $e) {
+                    // a connection problem
+                    $this->container['log']->notice("Error de conexion al consultar estado de {$this->tipo}$clave.");
+                }
+            } else {
+                //Fallo en conseguir token
+                return false;
+            }
+        } else {
+            //Limite exedido
+            return false;
+        }
+    }
+
+    /**
+     * Coger xml del comprobante enviado a Hacienda
+     * 
+     * @return string
+     */
+    public function cogerXml()
+    {
+        if (!$this->datos) {
+            $this->_cargarDatosXml();
+        }
+        return $this->xml;
+    }
+
+    /**
+     * Coger xml de respuesta de Hacienda
+     * 
+     * @return string
+     */
+    public function cogerXmlRespuesta()
+    {
+        $clave = $this->clave;
+
+        //Guardar el archivo
+        $storage_path = $this->container['storage_path'];
+        $storage_path .= "{$this->id}/";
+        $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+
+        $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
+        $filename .= $clave . '.xml';
+        $zip_name = $this->tipo . $clave . '.zip';
+
+        $zip = new \ZipArchive();
+        if ($zip->open($storage_path . $zip_name) !== true) {
+            throw new \Exception("Fallo al abrir <$zip_name> abriendo MR\n");
+        }
+
+        if ($zip->locateName($filename) !== false) {
+            //XML esta guardado
+            $xml = $zip->getFromName($filename);
+        } else {
+            return false;
+        }
+        $zip->close();
+        return $xml;
     }
 
     /**
@@ -472,7 +606,7 @@ class Comprobante
         $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
         $sql = "SELECT mensaje FROM $table WHERE clave=? AND id_empresa=?";
         $stmt = $this->container['db']->prepare($sql);
-        $stmt->bind-param('si', $this->clave, $this->id);
+        $stmt->bind_param('si', $this->clave, $this->id);
         $stmt->execute();
         return $stmt->get_result()->fetch_row()[0];
     }
