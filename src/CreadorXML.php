@@ -76,6 +76,10 @@ class CreadorXML
         if (isset($datos['NumeroConsecutivoReceptor'])) {
             //Este es un mensaje de confirmacion
             $consecutivo = $datos['NumeroConsecutivoReceptor'];
+            if (!isset($datos['CodigoActividad'])) {
+                //Version vieja
+                $this->version = '4.2';
+            }
         } else {
             //Es una factura
             $consecutivo = $datos['NumeroConsecutivo'];

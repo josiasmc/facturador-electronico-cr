@@ -56,7 +56,7 @@ class Comprobante
     {
         date_default_timezone_set('America/Costa_Rica');
         $this->container = $container;
-
+        //fwrite(fopen('php://stderr', 'w'), \print_r($datos) . "\n");
         if (isset($datos['clave']) && isset($datos['tipo'])) {
             //Cargar un comprobante que ya esta hecho
             $clave = $datos['clave'];
@@ -92,8 +92,6 @@ class Comprobante
             //-------- Crear un nuevo comprobante --------
             if (isset($datos['NumeroConsecutivoReceptor'])) {
                 //Crear un mensaje de confirmacion nuevo
-                $cedula = ltrim($datos['NumeroCedulaReceptor'], '0');
-                $clave = $datos['Clave'];
                 $this->consecutivo = $datos['NumeroConsecutivoReceptor'];
                 $this->tipo = 'R';
             } else {
@@ -101,6 +99,9 @@ class Comprobante
                 $cedula = $datos['Emisor']['Identificacion']['Numero'];
                 $this->consecutivo = $datos['NumeroConsecutivo'];
                 $this->tipo = 'E';
+            }
+            if (isset($datos['Clave'])) {
+                $clave = $datos['Clave'];
             }
 
             //---Revisar si el emisor esta guardado---
@@ -143,7 +144,6 @@ class Comprobante
             $this->datos = $datos; 
             $this->estado = 0; //Comprobante sin guardar
             $this->clave = $clave;
-            $this->tipo = \substr($clave, 30, 1);
 
             //---Generar el xml de este comprobante
             $this->container['id'] = $id; //Guardar el id de empresa
@@ -170,6 +170,14 @@ class Comprobante
         $clave = $this->clave;
         $this->estado = 1; //En cola
         if ($this->tipo == 'R') {
+            //Borrar recepcion previa si existe
+            $sql = "DELETE FROM fe_recepciones
+            WHERE clave='$clave' AND id_empresa={$this->id}";
+            $db->query($sql);
+            $sql = "DELETE FROM fe_cola
+            WHERE clave='$clave' AND id_empresa={$this->id} AND accion=2";
+            $db->query($sql);
+
             $table = 'fe_recepciones';
             $accion = 2; //ENVIAR_RECEPCION
         } else {
@@ -183,6 +191,7 @@ class Comprobante
         VALUES ('$clave', '{$this->id}', '{$this->estado}')";
         $db->query($sql);
         $this->id_comprobante = $db->insert_id;
+            fwrite(fopen('php://stderr', 'w'), 'recepcion guardado' . "\n");
 
         //Agregar a la cola
         $timestamp = (new \DateTime())->getTimestamp();
@@ -223,11 +232,11 @@ class Comprobante
 
         if ($this->tipo == 'R') {
             $zip_name = 'R' . $clave . '.zip';
-            $tipo_doc = 'MH';
+            $tipo_doc = 'MR';
         } else {
             $zip_name = 'E' . $clave . '.zip';
             $tipo_doc = substr($this->consecutivo, 9, 1) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MH', 'MH', 'MH', 'FEC', 'FEE'][$tipo_doc];
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
         }
         $path .= $zip_name;
         $filename = $tipo_doc . $clave . '.xml';
@@ -301,10 +310,37 @@ class Comprobante
                     }
                 } else {
                     //Cogemos datos para un mensaje receptor
-                    $xmlData = $this->container['xmlData'];
-                    $receptor = $this->container['receptor'];
-                    $tipoId = str_pad($receptor['tipo'], 2, '0', STR_PAD_LEFT);
-                    $clave = $xmlData['Clave'];
+                    $cedula = ltrim($datos['NumeroCedulaReceptor'], '0');
+                    $clave = $datos['Clave'];
+                    if (strlen($cedula == 9)) {
+                        $tipoId = '01';
+                    } elseif (strlen($cedula > 10)) {
+                        $tipoId = '03';
+                    } elseif (preg_match("/^[234][\d]{9}$/", $cedula) == 1) {
+                        $tipoId = '02';
+                    } else {
+                        $tipoId = '04';
+                    }
+                    //Conseguir el archivo XML recepcionado
+                    $path = $this->container['storage_path'];
+                    $path .= "$idEmpresa/" . "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+                    $zip_name = 'R' . $clave . '.zip';
+                    $tipo_doc = substr($clave, 30, 1) - 1;
+                    $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+                    $filename = $tipo_doc . $clave . '.xml';
+
+                    $zip = new \ZipArchive();
+                    if ($zip->open($path . $zip_name) !== true) {
+                        throw new \Exception("Fallo al abrir <$zip_name> para enviar MR\n");
+                    }
+
+                    if ($zip->locateName($filename) !== false) {
+                        $xmlData = Comprobante::analizarXML($zip->getFromName($filename));
+                    } else {
+                        return false;
+                    }
+                    $zip->close();
+
                     $table = 'fe_recepciones';
                     $accion = 2; //enviar recepcion
                     $post = [
@@ -316,7 +352,7 @@ class Comprobante
                         ],
                         'receptor' => [
                             'tipoIdentificacion' => $tipoId,
-                            'numeroIdentificacion' => $receptor['id']
+                            'numeroIdentificacion' => $cedula
                         ]
                     ];
                 }
@@ -328,7 +364,7 @@ class Comprobante
                 if ($this->tipo == 'R') {
                     $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
                 }
-                fwrite(fopen('php://stderr', 'w'), \json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+                
                 $post['comprobanteXml'] = base64_encode($this->xml);
 
                 $sql  = "SELECT a.uri_api FROM fe_ambientes a
@@ -413,7 +449,13 @@ class Comprobante
             //Intentar conseguir un token de acceso
             $token = (new Token($this->container, $idEmpresa))->getToken();
             if ($token) {
-                $consecutivo = false;
+                if ($this->tipo == 'R') {
+                    $this->_cargarDatosXml();
+                    $consecutivo = $this->datos['NumeroConsecutivoReceptor'];
+                } else {
+                    $consecutivo = false;
+                }
+                
                 $clave = $this->clave;
 
                 $client = new Client(
@@ -424,7 +466,7 @@ class Comprobante
                 WHERE e.id_empresa=$idEmpresa";
                 $uri = $this->container['db']->query($sql)->fetch_row()[0] . "recepcion/$clave";
                 if ($consecutivo) {
-                    $url .= "-$consecutivo";
+                    $uri .= "-$consecutivo";
                 }
 
                 try {

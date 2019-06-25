@@ -254,36 +254,42 @@ class FacturadorElectronico
     /**
      * Recibir xml de un proveedor
      * 
-     * @param string $receptor        [tipo, id] del receptor del comprobante
-     * @param int    $mensajeReceptor El consecutivo del mensaje
-     * @param string $xmlInput        El xml para confirmar
+     * @param string $xml         XML que se esta recibiendo
+     * @param int    $datos       Datos del comprobante de recepcion
+     * @param string $id_empresa  ID de la empresa receptora
      * 
-     * @return int|bool El estado (-1: existe, 1:pendiente, 2:enviado)
+     * @return int|bool El estado
      */
-    public function recibirXml($receptor, $mensajeReceptor, $xmlInput)
+    public function recepcionar($xml = '', $datos, $id_empresa)
     {
-        $db = $this->container['db'];
-        $clave = $mensajeReceptor['Clave'];
-        if ($this->estadoComprobanteRecibido($clave) == false) {            
-            $estado = 1; //pendiente
-            $id = $receptor['id'];
-
-            //Guardamos el xml
-            $xmldb = $db->real_escape_string(gzcompress($xmlInput));
-            $sql = "INSERT INTO Recepciones
-                        (Clave, Cedula, Estado, xmlRecibido) 
-                    VALUES
-                        ('$clave', '$id', '$estado', '$xmldb')";
-            $r = $db->query($sql);
-            //Enviamos el mensaje de respuesta
-            $container = $this->container;
-            $container['receptor'] = $receptor; //Se necesita para mensaje Receptor
-            $container['xmlData'] = $this->analizarComprobante($xmlInput);
-            $comprobante = new Comprobante($container, $mensajeReceptor);
-            return $comprobante->enviar(); //El estado, si fue exitoso, o false
-        } else {
-            return -1; //ya existe
+        //Guardar el XML recepcionado si se envio
+        if ($xml) {
+            $clave = $datos['Clave'];
+            $path = $this->container['storage_path'];
+            $path .= "$id_empresa/";
+            if (!file_exists($path)) {
+                mkdir($path);
+            }
+            $path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+            if (!file_exists($path)) {
+                mkdir($path);
+            }
+            $tipo_doc = substr($clave, 30, 1) - 1;
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+            $filename = $tipo_doc . $clave . '.xml';
+            $zip_name = 'R' . $clave . '.zip';
+    
+            $zip = new \ZipArchive();
+            if ($zip->open($path . $zip_name, \ZipArchive::CREATE) !== true) {
+                throw new \Exception("Fallo al abrir <$zip_name>\n");
+            }
+            $zip->addFromString($filename, $xml);
+            $zip->close();
         }
+
+        //Crear el comprobante de recepcion
+        $comprobante = new Comprobante($this->container, $datos, $id_empresa);
+        return $comprobante->guardarEnCola();
     }
 
     /**
@@ -381,7 +387,7 @@ class FacturadorElectronico
                 $tipo_doc = 'MHMR';
             } else {
                 $tipo_doc = substr($clave, 30, 1) - 1;
-                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MH', 'MH', 'MH', 'FEC', 'FEE'][$tipo_doc];
+                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
             }
             $filename = $tipo_doc . $clave . '.xml';
 
