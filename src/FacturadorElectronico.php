@@ -222,7 +222,8 @@ class FacturadorElectronico
             //Validar el id
             $sql = "SELECT id_empresa, COUNT(*) FROM $tabla WHERE $col=? AND clave=?";
             $stmt = $db->prepare($sql);
-            $stmt->bind_param('is', substr($token, 1), $clave);
+            $token = substr($token, 1);
+            $stmt->bind_param('is', $token, $clave);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_row();
             $id_empresa = $r[0];
