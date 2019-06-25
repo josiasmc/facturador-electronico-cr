@@ -58,7 +58,7 @@ class FacturadorElectronico
         $container['db'] = $db;
 
         // Inicializar el logger
-        $loglevel = Logger::DEBUG;
+        $loglevel = Logger::INFO;
         $log = new Logger('facturador');
         $log->pushHandler(new MySqlLogger($db, $loglevel));
         $container['log'] = $log;
