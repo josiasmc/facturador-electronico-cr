@@ -476,8 +476,10 @@ class Comprobante
                         $token = $this->tipo . $this->id_comprobante;
                         
                         $cuerpo = json_decode($body, true);
-                        $xml = base64_decode($cuerpo['respuesta-xml']);
-                        $this->guardarMensajeHacienda($xml);
+                        if (isset($cuerpo['respuesta-xml'])) {
+                            $xml = base64_decode($cuerpo['respuesta-xml']);
+                            $this->guardarMensajeHacienda($xml);
+                        }
                         return true;
                     } else {
                         // ocurrio un error
@@ -492,6 +494,10 @@ class Comprobante
                         //Token expirado o mal formado
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
                         $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                    } elseif ($code == '400') {
+                        //No se encuentra
+                        $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
+                        $this->container['log']->error("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
                     } else {
                         //Error de estructura
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
@@ -505,6 +511,7 @@ class Comprobante
                     // a connection problem
                     $this->container['log']->notice("Error de conexion al consultar estado de {$this->tipo}$clave.");
                 }
+                return false;
             } else {
                 //Fallo en conseguir token
                 return false;

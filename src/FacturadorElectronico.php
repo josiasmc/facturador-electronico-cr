@@ -101,10 +101,10 @@ class FacturadorElectronico
         $empresas = new Empresas($this->container);
         $log = $this->container['log'];
         if ($id === 0) {
-            $log->notice('Creando empresa nueva para el cliente con ID ' . $this->container['client_id']);
+            //$log->notice('Creando empresa nueva para el cliente con ID ' . $this->container['client_id']);
             return $empresas->add($datos);
         } else {
-            $log->info("Modificando empresa $id para el cliente con ID " . $this->container['client_id']);
+            //$log->info("Modificando empresa $id para el cliente con ID " . $this->container['client_id']);
             return $empresas->modify($id, $datos);
         }
     }
@@ -320,7 +320,9 @@ class FacturadorElectronico
             //comprobante esta enviado
             $comprobante->consultarEstado();
             $estado = $comprobante->estado;
-            if ($xml = $comprobante->cogerXmlRespuesta()) {
+            if ($estado > 2) {
+                $xml = $comprobante->cogerXmlRespuesta();
+            } else {
                 $xml = '';
             }
 
