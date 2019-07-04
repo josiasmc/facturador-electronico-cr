@@ -125,7 +125,7 @@ class Empresas
         WHERE id_empresa='$id' AND id_cliente='$client_id'";
         if ($r = $db->query($sql) === true) {
             if ($db->affected_rows > 0) {
-                return true;
+                return $id;
             } else {
                 return false;
             }
