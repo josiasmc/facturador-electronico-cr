@@ -462,9 +462,34 @@ class FacturadorElectronico
                 'tipo' => $row['accion'] == 1 ? 'E' : 'R'
             ];
             $comprobante = new Comprobante($this->container, $datos, $row['id_empresa']);
-            if ($comprobante->enviar()) {
-                $enviados[] = $datos;
+            if ($row['intentos_envio'] > 0) {
+                //Primero consultar estado
+                if ($comprobante->consultarEstado()) {
+                    $enviados[] = [
+                        'clave' => $row['clave'],
+                        'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                        'estado' => $comprobante->estado
+                    ];
+                } else {
+                    //volver a enviarlo
+                    if ($comprobante->enviar()) {
+                        $enviados[] = [
+                            'clave' => $row['clave'],
+                            'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                            'estado' => 2
+                        ];
+                    }
+                }
+            } else {
+                if ($comprobante->enviar()) {
+                    $enviados[] = [
+                        'clave' => $row['clave'],
+                        'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                        'estado' => 2
+                    ];
+                }
             }
+            
         }
         return $enviados;
     }
