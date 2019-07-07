@@ -457,25 +457,31 @@ class FacturadorElectronico
         $res = $db->query($sql);
         $enviados = [];
         while ($row = $res->fetch_assoc()) {
+            $clave = $row['clave'];
+            $accion = $row['accion'];
             $datos = [
-                'clave' => $row['clave'],
-                'tipo' => $row['accion'] == 1 ? 'E' : 'R'
+                'clave' => $clave,
+                'tipo' => $accion == 1 ? 'E' : 'R'
             ];
             $comprobante = new Comprobante($this->container, $datos, $row['id_empresa']);
             if ($row['intentos_envio'] > 0) {
                 //Primero consultar estado
                 if ($comprobante->consultarEstado()) {
+                    //Se logro consultar estado
                     $enviados[] = [
-                        'clave' => $row['clave'],
-                        'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                        'clave' => $clave,
+                        'tipo' => $accion == 1 ? 'E' : 'R',
                         'estado' => $comprobante->estado
                     ];
+                    //Eliminarlo de la cola
+                    $sql = "DELETE FROM fe_cola WHERE clave='$clave' AND accion='$accion'";
+                    $db->query($sql);
                 } else {
                     //volver a enviarlo
                     if ($comprobante->enviar()) {
                         $enviados[] = [
-                            'clave' => $row['clave'],
-                            'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                            'clave' => $clave,
+                            'tipo' => $accion == 1 ? 'E' : 'R',
                             'estado' => 2
                         ];
                     }
@@ -483,8 +489,8 @@ class FacturadorElectronico
             } else {
                 if ($comprobante->enviar()) {
                     $enviados[] = [
-                        'clave' => $row['clave'],
-                        'tipo' => $row['accion'] == 1 ? 'E' : 'R',
+                        'clave' => $clave,
+                        'tipo' => $accion == 1 ? 'E' : 'R',
                         'estado' => 2
                     ];
                 }
