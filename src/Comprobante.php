@@ -483,8 +483,6 @@ class Comprobante
                         return true;
                     } else {
                         // ocurrio un error
-                        $code = $res->getStatusCode();
-                        $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error desconocido");
                         return false;
                     }
                 } catch (Exception\ClientException $e) {
@@ -712,7 +710,7 @@ class Comprobante
             return XmlReader::codigoParser($reader, $GLOBALS['ns']);
         };
 
-        $service->elementMap = [
+        $elementMap = [
             $xmlns.$root => $f_repeatKeyValue,
             $xmlns.'Emisor' => $f_keyValue,
             $xmlns.'Receptor' => $f_keyValue,
@@ -720,14 +718,21 @@ class Comprobante
             $xmlns.'Ubicacion' => $f_keyValue,
             $xmlns.'Telefono' => $f_keyValue,
             $xmlns.'Fax' => $f_keyValue,
+            $xmlns.'Descuento' => $f_keyValue,
             $xmlns.'Impuesto' => $f_keyValue,
             $xmlns.'ResumenFactura' => $f_keyValue,
             $xmlns.'DetalleServicio' => $f_detalleServicio,
             $xmlns.'LineaDetalle' => $f_repeatKeyValue,
-            $xmlns.'Codigo' => $f_codigoParser,
+            $xmlns.'CodigoComercial' => $f_keyValue,
             $xmlns.'Normativa' => $f_keyValue,
+            $xmlns.'CodigoTipoMoneda' => $f_keyValue,
             $xmlns.'Otros' => $f_keyValue
         ];
+        if (stripos($xmlns, 'tribunet.hacienda.go.cr') > 0) {
+            //Comprobante viejo
+            $elementMap[$xmlns.'Codigo'] = $f_codigoParser;
+        }
+        $service->elementMap = $elementMap;
         return $service->parse($xml);
     }
 }
