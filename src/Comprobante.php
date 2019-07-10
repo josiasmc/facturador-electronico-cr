@@ -483,6 +483,8 @@ class Comprobante
                         return true;
                     } else {
                         // ocurrio un error
+                        $code = $res->getStatusCode();
+                        $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error desconocido");
                         return false;
                     }
                 } catch (Exception\ClientException $e) {
