@@ -720,6 +720,7 @@ class Comprobante
             $xmlns.'Fax' => $f_keyValue,
             $xmlns.'Descuento' => $f_keyValue,
             $xmlns.'Impuesto' => $f_keyValue,
+            $xmlns.'Exoneracion' => $f_keyValue,
             $xmlns.'ResumenFactura' => $f_keyValue,
             $xmlns.'DetalleServicio' => $f_detalleServicio,
             $xmlns.'LineaDetalle' => $f_repeatKeyValue,

@@ -332,7 +332,7 @@ class FacturadorElectronico
             $estado = $comprobante->estado;
             $xml = '';
         }
-        $estado = array('pendiente', 'enviado', 'aceptado', 'rechazado')[$estado - 1];
+        $estado = array('pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado')[$estado];
         return [
             'clave' => $clave,
             'estado' => $estado,
