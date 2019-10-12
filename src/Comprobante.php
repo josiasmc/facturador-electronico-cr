@@ -682,21 +682,16 @@ class Comprobante
             $xml = utf8_encode($xml);
         }
         //Coger el elemento root del comprobante
-        $st = stripos(substr($xml, 0, 10), 'xml');
-        $st = $st ? $st : 0;
-        $s = stripos($xml, '<', $st) + 1;
-        $e = stripos($xml, ' ', $s);
-        $root = substr($xml, $s, $e - $s);
-        
+        \preg_match('/\?\>\s*\<(\w+)/', $xml, $results);
+        $root = $results[1];
+
         //Coger el namespace del comprobante
-        $s = stripos($xml, 'xmlns=') + 7;
-        $e = stripos($xml, '"', $s+10);
+        \preg_match('/xmlns="([^"]+)"/', $xml, $results);
         global $ns;
-        $ns = substr($xml, $s, $e - $s);
+        $ns = $results[1];
         global $xmlns;
         $xmlns = '{'.$ns.'}';
         $service = new Service;
-
         $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
             return XmlReader::repeatKeyValue($reader, $GLOBALS['ns']);
         };
@@ -727,9 +722,11 @@ class Comprobante
             $xmlns.'CodigoComercial' => $f_keyValue,
             $xmlns.'Normativa' => $f_keyValue,
             $xmlns.'CodigoTipoMoneda' => $f_keyValue,
-            $xmlns.'Otros' => $f_keyValue
+            $xmlns.'Otros' => $f_keyValue,
+            $xmlns.'InformacionReferencia' => $f_keyValue,
+            $xmlns.'OtroContenido' => $f_keyValue
         ];
-        if (stripos($xmlns, 'tribunet.hacienda.go.cr') > 0) {
+        if (stripos($xmlns, 'v4.2') > 0) {
             //Comprobante viejo
             $elementMap[$xmlns.'Codigo'] = $f_codigoParser;
         }

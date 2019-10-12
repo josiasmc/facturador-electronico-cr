@@ -3,17 +3,12 @@
  * Parser for Ministerio de Hacienda docs
  */
 
-use Contica\eFacturacion\Facturador;
+use Contica\Facturacion\Comprobante;
 require __DIR__ . '/../vendor/autoload.php';
 require 'configs.php';
 
-$facturador = new Facturador(['contra' => $databasePassword]);
-
-$filename = '/home/josias/problema.xml';
-//$filename = '/recibido.xml';
-$file = fopen($filename, 'r');
-$xml = fread($file, filesize($filename));
-fclose($file);
+$filename = '/recibido.xml';
+$xml = file_get_contents($filename);
 //Eliminar la firma
-$result = $facturador->analizarComprobante($xml);
+$result = Comprobante::analizarXML($xml);
 print_r($result);
