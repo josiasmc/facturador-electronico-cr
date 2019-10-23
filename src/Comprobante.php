@@ -684,7 +684,6 @@ class Comprobante
         //Coger el elemento root del comprobante
         \preg_match('/\<(\w+) x/', $xml, $results);
         $root = $results[1];
-        print_r($results);
 
         //Coger el namespace del comprobante
         \preg_match('/xmlns="([^"]+)"/', $xml, $results);
