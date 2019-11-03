@@ -290,7 +290,6 @@ class FacturadorElectronico
         $error = false;
         if ($xml = $this->cogerXml($datos['Clave'], 'R', 2, $id_empresa)) {
             //Xml de respuesta se encuentra disponible
-            fwrite(fopen('php://stderr', 'w'), 'MR local disponible' . "\n");
             $datosXML = Comprobante::analizarXML($xml);
             $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
             if ($estado != 3) {
@@ -298,7 +297,6 @@ class FacturadorElectronico
             }
         } else {
             //Consultar el estado en Hacienda
-            fwrite(fopen('php://stderr', 'w'), 'Consultando MR en Hacienda' . "\n");
             $o_datos = [
                 'clave' => $datos['Clave'],
                 'tipo' => 'C'
