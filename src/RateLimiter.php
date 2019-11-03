@@ -1,7 +1,7 @@
 <?php
 /**
  * Estadisticas de uso del API de Hacienda
- * Nota: Produccion y Sandbox todo va junto aqui
+ * Nota: Los limites de acceso unicamente se aplican a Sandbox
  *  
  * PHP version 7.3
  * 
@@ -82,11 +82,13 @@ class RateLimiter
         if (isset($this->id_cache[$id])) {
             $cedula = $this->id_cache[$id];
         } else {
-            $sql = "SELECT cedula FROM fe_empresas WHERE id_empresa=?";
+            $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=?";
             $stmt = $this->db->prepare($sql);
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            $cedula = $stmt->get_result()->fetch_row()[0];
+            $r = $stmt->get_result()->fetch_row();
+            $aplicar_limite = $r[1] == 1; //Limites unicamente en staging
+            $cedula = $aplicar_limite ? $r[0] : 0;
             $this->id_cache[$id] = $cedula;
         }
         return $cedula;
@@ -152,6 +154,8 @@ class RateLimiter
     public function canPost($id)
     {
         $cedula = $this->getCedula($id);
+        if ($cedula === 0) return true; //Contribuyente sin limites
+
         $userLimits = $this->getUserLimits($cedula);
 
         //Si cualquiera de estos limites llego a 0, devolver false
@@ -172,6 +176,8 @@ class RateLimiter
     public function canGet($id)
     {
         $cedula = $this->getCedula($id);
+        if ($cedula === 0) return true; //Contribuyente sin limites
+
         $userLimits = $this->getUserLimits($cedula);
 
         //Si cualquiera de estos limites llego a 0, devolver false
@@ -191,6 +197,8 @@ class RateLimiter
     public function canGetToken($id)
     {
         $cedula = $this->getCedula($id);
+        if ($cedula === 0) return true; //Contribuyente sin limites
+        
         $userLimits = $this->getUserLimits($cedula);
 
         //Si cualquiera de estos limites llego a 0, devolver false
@@ -215,7 +223,8 @@ class RateLimiter
         }
 
         $cedula = $this->getCedula($id);
-        $userLimits = $this->getUserLimits($cedula);
+        if ($cedula === 0) return true; //Contribuyente sin limites no necesita registros
+        
         $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
 
         //Registrar transaccion en la cache
