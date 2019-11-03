@@ -17,7 +17,6 @@ namespace Contica\Facturacion;
 
 use \GuzzleHttp\Client;
 use \GuzzleHttp\Exception;
-use \GuzzleHttp\Psr7;
 use \Sabre\Xml\Service;
 
 /**
@@ -40,6 +39,7 @@ class Comprobante
     protected $xml;   //XML del comprobante
     protected $tipo;  //E para emision, o R para recepcion
     protected $id_comprobante; //id_emision o id_recepcion
+    public $enHacienda = null; //Utilizado al consultar estado de comprobante a recepcionar
 
     const EMISION = 1;   //Comprobante de emision
     const RECEPCION = 2; //Compbrobante de recepcion
@@ -56,17 +56,23 @@ class Comprobante
     {
         date_default_timezone_set('America/Costa_Rica');
         $this->container = $container;
-        //fwrite(fopen('php://stderr', 'w'), \print_r($datos) . "\n");
+        
         if (isset($datos['clave']) && isset($datos['tipo'])) {
             //Cargar un comprobante que ya esta hecho
             $clave = $datos['clave'];
-            $tipo = $datos['tipo']; //E para emision, o R para recepcion
+            $tipo = $datos['tipo']; //E = emision, R = recepcion, C = consulta en Hacienda
             if ($tipo === 'E') {
                 $tabla = 'fe_emisiones';
                 $id_name = 'id_emision';
-            } else {
+            } elseif ($tipo === 'R') {
                 $tabla = 'fe_recepciones';
                 $id_name = 'id_recepcion';
+            } elseif ($tipo === 'C') {
+                $this->clave = $clave;
+                $this->tipo = $tipo;
+                $this->id = $id;
+                $this->estado = 2;
+                return;
             }
             
             $db = $container['db'];
@@ -191,7 +197,6 @@ class Comprobante
         VALUES ('$clave', '{$this->id}', '{$this->estado}')";
         $db->query($sql);
         $this->id_comprobante = $db->insert_id;
-            fwrite(fopen('php://stderr', 'w'), 'recepcion guardado' . "\n");
 
         //Agregar a la cola
         $timestamp = (new \DateTime())->getTimestamp();
@@ -379,7 +384,6 @@ class Comprobante
                             ]
                     ]
                 );
-                $queries = [];
                 $post = json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 try {
                     $res = $client->post($uri, ['body' => $post]);
@@ -478,7 +482,14 @@ class Comprobante
                         $cuerpo = json_decode($body, true);
                         if (isset($cuerpo['respuesta-xml'])) {
                             $xml = base64_decode($cuerpo['respuesta-xml']);
-                            $this->guardarMensajeHacienda($xml);
+                            if ($this->tipo == 'C') {
+                                $datosXML = Comprobante::analizarXML($xml);
+                                $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+                                $this->estado = $estado;
+                                $this->enHacienda = true;
+                            } else {
+                                $this->guardarMensajeHacienda($xml);
+                            }
                         }
                         return true;
                     } else {
@@ -496,6 +507,7 @@ class Comprobante
                         $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
                     } elseif ($code == '400') {
                         //No se encuentra
+                        $this->enHacienda = false;
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
                         $this->container['log']->error("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
                     } else {

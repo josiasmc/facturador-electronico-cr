@@ -123,7 +123,7 @@ class Empresas
         $values = rtrim($values, ', ');
         $sql = "UPDATE fe_empresas SET $values
         WHERE id_empresa='$id' AND id_cliente='$client_id'";
-        if ($r = $db->query($sql) === true) {
+        if ($db->query($sql) === true) {
             if ($db->affected_rows > 0) {
                 return $id;
             } else {

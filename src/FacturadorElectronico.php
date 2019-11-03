@@ -19,8 +19,6 @@
 namespace Contica\Facturacion;
 
 use \Defuse\Crypto\Key;
-use \Sabre\Xml\Service;
-use \GuzzleHttp\Client;
 use \Monolog\Logger;
 
 /**
@@ -40,8 +38,8 @@ class FacturadorElectronico
     /**
      * Invoicer constructor
      * 
-     * @param MySqli $db       Conexion a MySql, conectado a la tabla correspondiente
-     * @param array  $settings Llave para utilizar en encriptado de datos en la BD
+     * @param \mysqli $db       Conexion a MySql, conectado a la tabla correspondiente
+     * @param array   $settings Llave para utilizar en encriptado de datos en la BD
      */
     public function __construct($db, $settings = [])
     {
@@ -263,7 +261,7 @@ class FacturadorElectronico
      */
     public function recepcionar($xml = '', $datos, $id_empresa)
     {
-        //Guardar el XML recepcionado si se envio
+        //Guardar el XML recepcionado si se envia
         if ($xml) {
             $clave = $datos['Clave'];
             $path = $this->container['storage_path'];
@@ -288,6 +286,42 @@ class FacturadorElectronico
             $zip->close();
         }
 
+        //Verificar el estado del documento que se esta recepcionando
+        $error = false;
+        if ($xml = $this->cogerXml($datos['Clave'], 'R', 2, $id_empresa)) {
+            //Xml de respuesta se encuentra disponible
+            fwrite(fopen('php://stderr', 'w'), 'MR local disponible' . "\n");
+            $datosXML = Comprobante::analizarXML($xml);
+            $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+            if ($estado != 3) {
+                $error = "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
+            }
+        } else {
+            //Consultar el estado en Hacienda
+            fwrite(fopen('php://stderr', 'w'), 'Consultando MR en Hacienda' . "\n");
+            $o_datos = [
+                'clave' => $datos['Clave'],
+                'tipo' => 'C'
+            ];
+            $c_original = new Comprobante($this->container, $o_datos, $id_empresa);
+            $c_original->consultarEstado();
+            if ($c_original->estado != 3) {
+                //No esta aceptado
+                if ($c_original->estado == 4) {
+                    //Rechazado
+                    $error = "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
+                } elseif ($c_original->enHacienda === false) {
+                    //No se encuentra en Hacienda
+                    $error = "El documento que se está intentando recepcionar no se encuentra en Hacienda. Intente más tarde.";
+                } else {
+                    //Ocurrio un error al consultar estado
+                    $error = "Ocurrió un error al consultar el estado del documento que se está intentando recepcionar. Intente más tarde.";
+                }
+            }
+        }
+
+        if ($error) throw new \Exception($error);
+
         //Crear el comprobante de recepcion
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
         return $comprobante->guardarEnCola();
@@ -304,7 +338,6 @@ class FacturadorElectronico
      */
     public function consultarEstado($clave, $tipo, $id_empresa)
     {
-        $db = $this->container['db'];
         $datos = [
             'clave' => $clave,
             'tipo' => $tipo
@@ -359,25 +392,26 @@ class FacturadorElectronico
         if ($lugar == 'E') {
             //Emision
             $tabla = 'fe_emisiones';
-            $col = 'id_emision';
         } elseif ($lugar == 'R') {
             //Recepcion
             $tabla = 'fe_recepciones';
-            $col = 'id_recepcion';
         } else {
             return false;
         }
         $sql = "SELECT estado FROM $tabla WHERE clave=$clave AND id_empresa=$id";
         $res = $db->query($sql);
-        if ($res->num_rows > 0) {
-            $estado = $res->fetch_row()[0];
-            if (($tipo == 2 && $estado < 3 && $lugar == 'E')) {
-                //No existe respuesta para emision
-                return false;
-            } elseif (($tipo == 4 && $estado < 3 && $lugar == 'R')) {
-                //No existe respuesta para recepcion
-                return false;
+        if ($res->num_rows > 0 || ($tipo < 3 && $lugar == 'R')) {
+            if ($lugar == 'E' || ($tipo > 2 && $lugar == 'R')) {
+                $estado = $res->fetch_row()[0];
+                if (($tipo == 2 && $estado < 3 && $lugar == 'E')) {
+                    //No existe respuesta para emision
+                    return false;
+                } elseif (($tipo == 4 && $estado < 3 && $lugar == 'R')) {
+                    //No existe respuesta para recepcion
+                    return false;
+                }
             }
+            
             //Conseguir el archivo
             $storage_path = $this->container['storage_path'];
             $storage_path .= "$id/";
@@ -425,14 +459,10 @@ class FacturadorElectronico
     {
         if ($tipo == 'E') {
             //Emision
-            $valido = true;
             $tabla = 'fe_emisiones';
-            $col = 'id_emision';
         } elseif ($tipo == 'R') {
             //Recepcion
-            $valido = true;
             $tabla = 'fe_recepciones';
-            $col = 'id_recepcion';
         } else {
             return false;
         }
