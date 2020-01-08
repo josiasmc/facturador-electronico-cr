@@ -188,6 +188,9 @@ class FacturadorElectronico
         $log = $this->container['log'];
         $cuerpo = json_decode($cuerpo, true);
         $ind_estado = strtolower($cuerpo['ind-estado']);
+        if ($ind_estado == 'recibido' || $ind_estado == 'procesando') {
+            $ind_estado = 'enviado';
+        }
         $clave = substr($cuerpo['clave'], 0, 50);
         if ($token === '') {
             if (isset($_REQUEST['token'])) {
@@ -229,33 +232,44 @@ class FacturadorElectronico
         }
 
         if (!$valido) {
-            $log->error("Error al procesar callback de Hacienda para la clave $clave. Token invalido.");
-            throw new \Exception("Token invalido al procesar callback de Hacienda para la clave $clave");
+            $log->error("Error al procesar callback de Hacienda para la clave $tipo$clave. Token invalido.");
+            throw new \Exception("Token invalido al procesar callback de Hacienda para la clave $tipo$clave");
         }
 
-        $log->debug("Guardando mensaje de respuesta de Hacienda. Clave: $tipo$clave");
         $datos = [
             'clave' => $clave,
             'tipo' => $tipo
         ];
-        $xml = base64_decode($cuerpo['respuesta-xml']);
-        $comprobante = new Comprobante($this->container, $datos, $id_empresa);
-        $comprobante->guardarMensajeHacienda($xml);
-        return [
-            'clave' => $clave,
-            'tipo' => $tipo,
-            'estado' => $ind_estado,
-            'mensaje' => $comprobante->cogerDetalleMensaje(),
-            'xml' => $xml //XML de respuesta de hacienda
-        ];
+
+        if (isset($cuerpo['respuesta-xml'])) {
+            $log->debug("Guardando mensaje de respuesta de Hacienda. Clave: $tipo$clave");
+            $xml = base64_decode($cuerpo['respuesta-xml']);
+            $comprobante = new Comprobante($this->container, $datos, $id_empresa);
+            $comprobante->guardarMensajeHacienda($xml);
+            return [
+                'clave' => $clave,
+                'tipo' => $tipo,
+                'estado' => $ind_estado,
+                'mensaje' => $comprobante->cogerDetalleMensaje(),
+                'xml' => $xml //XML de respuesta de hacienda
+            ];
+        } else {
+            return [
+                'clave' => $clave,
+                'tipo' => $tipo,
+                'estado' => $ind_estado,
+                'mensaje' => '',
+                'xml' => ''
+            ];
+        }
     }
 
     /**
      * Recibir xml de un proveedor
      * 
-     * @param string $xml         XML que se esta recibiendo
-     * @param int    $datos       Datos del comprobante de recepcion
-     * @param string $id_empresa  ID de la empresa receptora
+     * @param string $xml        XML que se esta recibiendo
+     * @param int    $datos      Datos del comprobante de recepcion
+     * @param string $id_empresa ID de la empresa receptora
      * 
      * @return int|bool El estado
      */
@@ -318,7 +332,9 @@ class FacturadorElectronico
             }
         }
 
-        if ($error) throw new \Exception($error);
+        if ($error) {
+            throw new \Exception($error);
+        }
 
         //Crear el comprobante de recepcion
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
@@ -347,7 +363,7 @@ class FacturadorElectronico
             //ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
 
-        } else if ($estado == 2) {
+        } elseif ($estado == 2) {
             //comprobante esta enviado
             $comprobante->consultarEstado();
             $estado = $comprobante->estado;
@@ -356,8 +372,7 @@ class FacturadorElectronico
             } else {
                 $xml = '';
             }
-
-        } else if ($estado == 1) {
+        } elseif ($estado == 1) {
             // ni siquiera se ha enviado
             $comprobante->enviar();
             $estado = $comprobante->estado;

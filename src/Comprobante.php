@@ -77,8 +77,10 @@ class Comprobante
             
             $db = $container['db'];
 
-            $stmt = $db->prepare("SELECT estado, $id_name FROM $tabla
-            WHERE clave=?");
+            $stmt = $db->prepare(
+                "SELECT estado, $id_name FROM $tabla
+                WHERE clave=?"
+            );
             $stmt->bind_param('s', $clave);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -481,6 +483,7 @@ class Comprobante
                         
                         $cuerpo = json_decode($body, true);
                         if (isset($cuerpo['respuesta-xml'])) {
+                            //llego el xml con el mensaje de respuesta
                             $xml = base64_decode($cuerpo['respuesta-xml']);
                             if ($this->tipo == 'C') {
                                 $datosXML = Comprobante::analizarXML($xml);
@@ -490,6 +493,24 @@ class Comprobante
                             } else {
                                 $this->guardarMensajeHacienda($xml);
                             }
+                        } elseif (isset($cuerpo['ind-estado'])) {
+                            //no esta la respuesta. coger el estado actual
+                            $ind_estado = strtolower($cuerpo['ind-estado']);
+                            if ($ind_estado == 'recibido' || $ind_estado == 'procesando') {
+                                $estado = 2;
+                            } elseif ($ind_estado == 'aceptado') {
+                                $estado = 3;
+                            } elseif ($ind_estado == 'rechazado') {
+                                $estado = 4;
+                            } elseif ($ind_estado == 'error') {
+                                $estado = 5;
+                            } else {
+                                $estado = 1;
+                            }
+                            if ($estado > 1) {
+                                $this->enHacienda = true;
+                            }
+                            $this->estado = $estado;
                         }
                         return true;
                     } else {
@@ -585,7 +606,8 @@ class Comprobante
      * 
      * @return null
      */
-    private function _aplazar_envio() {
+    private function _aplazar_envio()
+    {
         //Coger intentos actuales
         $clave = $this->clave;
         $accion = $this->tipo == 'E' ? 1 : 2;
@@ -663,7 +685,8 @@ class Comprobante
      * 
      * @return string
      */
-    public function cogerDetalleMensaje() {
+    public function cogerDetalleMensaje()
+    {
         $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
         $sql = "SELECT mensaje FROM $table WHERE clave=? AND id_empresa=?";
         $stmt = $this->container['db']->prepare($sql);
@@ -679,7 +702,8 @@ class Comprobante
      * 
      * @return array El resultado
      */
-    public static function analizarXML($xml) {
+    public static function analizarXML($xml)
+    {
 
         if ($xml == false) {
             //No enviaron nada, entonces solo daria error
