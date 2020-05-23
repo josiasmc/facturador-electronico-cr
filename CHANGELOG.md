@@ -6,6 +6,8 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.2.0] - 2020-05-23
+
 ### Added
 
 - Cuando ocurre un error fatal al comunicarse con Hacienda, quitar el
