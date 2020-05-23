@@ -657,6 +657,10 @@ class Comprobante
         }
         $siguiente = (new \DateTime())->getTimestamp() + $plazo;
         $intentos++;
+        if ($intentos >= 12) {
+            // Desactivar envios
+            $accion = 3;
+        }
         $sql = "UPDATE fe_cola SET tiempo_enviar=$siguiente, intentos_envio=$intentos
         WHERE clave='$clave' AND accion=$accion";
         $this->container['db']->query($sql);
