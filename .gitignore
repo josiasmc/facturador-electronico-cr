@@ -8,3 +8,4 @@ build/*
 *.xml
 *.p12
 tests/configs.php
+.markdownlint.json
