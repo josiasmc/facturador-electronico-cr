@@ -1,16 +1,17 @@
 <?php
+
 /**
  * Facturador electronico para Costa Rica
- * 
+ *
  * Este componente suple una interfaz para la integración de facturación
  * electrónica con el Ministerio de Hacienda en Costa Rica
- * 
- * PHP version 7.2
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturacion-electronica-cr
@@ -18,12 +19,13 @@
 
 namespace Contica\Facturacion;
 
-use \Defuse\Crypto\Key;
-use \Monolog\Logger;
+use Defuse\Crypto\Key;
+use Exception;
+use Monolog\Logger;
 
 /**
  * El proveedor de facturacion
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\eFacturacion
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -37,7 +39,7 @@ class FacturadorElectronico
     
     /**
      * Invoicer constructor
-     * 
+     *
      * @param \mysqli $db       Conexion a MySql, conectado a la tabla correspondiente
      * @param array   $settings Llave para utilizar en encriptado de datos en la BD
      */
@@ -67,7 +69,7 @@ class FacturadorElectronico
 
     /**
      * Especificar el id de cliente despues de crear objeto
-     * 
+     *
      * @return null
      */
     public function setClientId($id)
@@ -77,7 +79,7 @@ class FacturadorElectronico
 
     /**
      * Crear llave de encriptacion de base de datos
-     * 
+     *
      * @return string La representacion en texto de la llave
      */
     public static function crearLlaveSeguridad()
@@ -109,9 +111,9 @@ class FacturadorElectronico
 
     /**
      * Coger los datos de una empresa
-     * 
+     *
      * @param int $id ID unico de la empresa
-     * 
+     *
      * @return array Todos los campos de texto de la empresa
      */
     public function cogerEmpresa($id)
@@ -122,7 +124,7 @@ class FacturadorElectronico
 
     /**
      * Coger los datos basicos de todas las empresas
-     * 
+     *
      * @return array (id, cedula) de todas las empresas
      */
     public function cogerEmpresas()
@@ -133,9 +135,9 @@ class FacturadorElectronico
 
     /**
      * Buscar el ID de las empresas con cierta cedula
-     * 
+     *
      * @param int $cedula La cedula de la empresa
-     * 
+     *
      * @return array Array con los IDs de las empresas con la cedula provista
      */
     public function buscarEmpresaPorCedula($cedula)
@@ -146,9 +148,9 @@ class FacturadorElectronico
 
      /**
      * Coger la llave criptografica de la empresa
-     * 
+     *
      * @param int $id ID unico de la empresa
-     * 
+     *
      * @return file La llave criptografica de la empresa
      */
     public function cogerLlaveCriptograficaEmpresa($id)
@@ -159,28 +161,28 @@ class FacturadorElectronico
 
     /**
      * Enviar compropbante al Ministerio de Hacienda
-     * 
+     *
      * @param array $datos Los datos para construir el comprobante para enviar
      * @param int   $id    El ID unico de la empresa emisora
-     * 
+     *
      * @return string La clave numerica del comprobante
      */
-    public function enviarComprobante($datos, $id, $sinInternet = false )
+    public function enviarComprobante($datos, $id, $sinInternet = false)
     {
         $comprobante = new Comprobante($this->container, $datos, $id, $sinInternet);
         if ($comprobante->guardarEnCola()) {
             return $comprobante->clave;
         } else {
             return false;
-        }  
+        }
     }
 
     /**
      * Procesar el callback de Hacienda
-     * 
+     *
      * @param string $cuerpo El cuerpo del POST de Hacienda
      * @param int    $token  Token de identificacion
-     * 
+     *
      * @return array Estado del comprobante enviado
      */
     public function procesarCallbackHacienda($cuerpo, $token = '')
@@ -266,14 +268,14 @@ class FacturadorElectronico
 
     /**
      * Recibir xml de un proveedor
-     * 
+     *
      * @param string $xml        XML que se esta recibiendo
      * @param int    $datos      Datos del comprobante de recepcion
      * @param string $id_empresa ID de la empresa receptora
-     * 
+     *
      * @return int|bool El estado
      */
-    public function recepcionar($xml = '', $datos, $id_empresa)
+    public function recepcionar($xml, $datos, $id_empresa)
     {
         //Guardar el XML recepcionado si se envia
         if ($xml) {
@@ -343,11 +345,11 @@ class FacturadorElectronico
 
     /**
      * Consultar el estado de un comprobante
-     * 
-     * @param string $clave      La clave del comprobante a interrogar 
+     *
+     * @param string $clave      La clave del comprobante a interrogar
      * @param int    $tipo       E para Emisiones, R para Recepciones
      * @param int    $id_empresa ID unico de empresa
-     * 
+     *
      * @return array El resultado
      */
     public function consultarEstado($clave, $tipo, $id_empresa)
@@ -362,7 +364,6 @@ class FacturadorElectronico
         if ($estado > 2) {
             //ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
-
         } elseif ($estado == 2) {
             //comprobante esta enviado
             $comprobante->consultarEstado();
@@ -385,17 +386,16 @@ class FacturadorElectronico
             'mensaje' => $comprobante->cogerDetalleMensaje(),
             'xml' => $xml //xml de confirmacion de Hacienda
         ];
-
     }
 
     /**
      * Coger XML
-     * 
+     *
      * @param string $clave La clave del comprobante
      * @param string $lugar E o R
      * @param int    $tipo  Cual xml
      * @param int    $id    ID empresa
-     * 
+     *
      * @return string Contenido del xml o false si no se halla
      */
     public function cogerXml($clave, $lugar, $tipo, $id)
@@ -443,7 +443,7 @@ class FacturadorElectronico
 
             $zip = new \ZipArchive();
             if ($zip->open($storage_path . $zip_name) !== true) {
-                throw new \Exception("Fallo al abrir <$zip_name> abriendo MR\n");
+                throw new \Exception("Fallo al abrir <$zip_name> abriendo xml\n");
             }
 
             if ($zip->locateName($filename) !== false) {
@@ -454,7 +454,6 @@ class FacturadorElectronico
             }
             $zip->close();
             return $xml;
-
         } else {
             return false;
         }
@@ -462,13 +461,13 @@ class FacturadorElectronico
 
     /**
      * Coger el msg de un comprobante
-     * 
+     *
      * @param string $clave La clave del comprobante recibido
      * @param int    $tipo  E para Emisiones, R para Recepciones
-     * 
+     *
      * @return string El mensaje que Hacienda devolvio con el xml
      */
-    public function cogerMsg($clave, $tipo) 
+    public function cogerMsg($clave, $tipo)
     {
         if ($tipo == 'E') {
             //Emision
@@ -489,14 +488,17 @@ class FacturadorElectronico
 
     /**
      * Enviar los comprobantes en la cola de envio
-     * 
-     * @return array [clave => clave, tipo => E o R] con todos los que se enviaron
+     * y devolver una lista de los comprobantes enviados
+     *
+     * @return array [[clave => clave, tipo => E o R], [...]] con todos los que se enviaron
      */
-    public function enviarCola() 
+    public function enviarCola()
     {
         $db = $this->container['db'];
+        $log = $this->container['log'];
         $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
-        $sql = "SELECT * FROM fe_cola WHERE tiempo_enviar <= $timestamp AND accion < 3";
+        $sql = "SELECT * FROM fe_cola
+        WHERE tiempo_enviar <= $timestamp AND accion < 3 AND intentos_envio < 12";
         $res = $db->query($sql);
         $enviados = [];
         while ($row = $res->fetch_assoc()) {
@@ -521,6 +523,22 @@ class FacturadorElectronico
                     $db->query($sql);
                 } else {
                     //volver a enviarlo
+                    try {
+                        if ($comprobante->enviar()) {
+                            $enviados[] = [
+                                'clave' => $clave,
+                                'tipo' => $accion == 1 ? 'E' : 'R',
+                                'estado' => 2
+                            ];
+                        }
+                    } catch (Exception $e) {
+                        // Error al enviarlo
+                        $log->error("Error devuelto al intentar reenviar comprobante: $e");
+                        $comprobante->desactivarEnvios();
+                    }
+                }
+            } else {
+                try {
                     if ($comprobante->enviar()) {
                         $enviados[] = [
                             'clave' => $clave,
@@ -528,17 +546,12 @@ class FacturadorElectronico
                             'estado' => 2
                         ];
                     }
-                }
-            } else {
-                if ($comprobante->enviar()) {
-                    $enviados[] = [
-                        'clave' => $clave,
-                        'tipo' => $accion == 1 ? 'E' : 'R',
-                        'estado' => 2
-                    ];
+                } catch (Exception $e) {
+                    // Error al enviarlo
+                    $log->error("Error devuelto al intentar enviar comprobante: $e");
+                    $comprobante->desactivarEnvios();
                 }
             }
-            
         }
         return $enviados;
     }

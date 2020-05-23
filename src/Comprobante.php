@@ -1,13 +1,14 @@
 <?php
+
 /**
  * Interfaz para procesar los comprobantes electronicos
- *  
- * PHP version 7.3
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
@@ -15,13 +16,13 @@
 
 namespace Contica\Facturacion;
 
-use \GuzzleHttp\Client;
-use \GuzzleHttp\Exception;
-use \Sabre\Xml\Service;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception;
+use Sabre\Xml\Service;
 
 /**
  * Class providing functions to manage electronic invoices
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\Comprobante
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -41,12 +42,12 @@ class Comprobante
     protected $id_comprobante; //id_emision o id_recepcion
     public $enHacienda = null; //Utilizado al consultar estado de comprobante a recepcionar
 
-    const EMISION = 1;   //Comprobante de emision
-    const RECEPCION = 2; //Compbrobante de recepcion
+    public const EMISION = 1;   //Comprobante de emision
+    public const RECEPCION = 2; //Compbrobante de recepcion
 
     /**
      * Constructor del comprobante
-     * 
+     *
      * @param array $container   El contenedor del facturador
      * @param array $datos       Los datos del comprobante a crear o cargar
      * @param int   $id          El ID unico de la empresa emisora
@@ -128,7 +129,7 @@ class Comprobante
                 $situacion = 3; //Sin internet
             } else {
                 $situacion = 1; //Normal
-            }   
+            }
             if (isset($datos['InformacionReferencia'])) {
                 if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
                     $situacion = 2; //Contingencia
@@ -149,7 +150,7 @@ class Comprobante
                 $datos = array_merge(['Clave' => $clave], $datos);
             }
             $this->id = $id;
-            $this->datos = $datos; 
+            $this->datos = $datos;
             $this->estado = 0; //Comprobante sin guardar
             $this->clave = $clave;
 
@@ -162,7 +163,7 @@ class Comprobante
 
     /**
      * Guardar el comprobante en la cola
-     * 
+     *
      * @return bool
      */
     public function guardarEnCola()
@@ -192,7 +193,7 @@ class Comprobante
             $table = 'fe_emisiones';
             $accion = 1; //ENVIAR_EMISION
         }
-        $this->_generate_filenames($zip_path, $filename);
+        $this->generateFilenames($zip_path, $filename);
 
         //Guardar el registro
         $sql = "INSERT INTO $table (clave, id_empresa, estado)
@@ -218,10 +219,10 @@ class Comprobante
 
     /**
      * Generar ruta de zip y de comprobante xml
-     * 
+     *
      * @return bool true si se logra
      */
-    private function _generate_filenames(&$path, &$filename)
+    private function generateFilenames(&$path, &$filename)
     {
         $path = $this->container['storage_path'];
         if ($path == '') {
@@ -251,12 +252,12 @@ class Comprobante
 
     /**
      * Cargar datos del xml guardado
-     * 
+     *
      * @return bool true si se logra
      */
-    private function _cargarDatosXml()
+    private function cargarDatosXml()
     {
-        $this->_generate_filenames($zip_path, $filename);
+        $this->generateFilenames($zip_path, $filename);
         //Abrir el archivo XML
         $zip = new \ZipArchive();
         if ($zip->open($zip_path) !== true) {
@@ -275,7 +276,7 @@ class Comprobante
 
     /**
      * Enviar el comprobante a Hacienda
-     * 
+     *
      * @return bool
      */
     public function enviar()
@@ -286,7 +287,7 @@ class Comprobante
         }
 
         if (!$this->datos) {
-            $this->_cargarDatosXml();
+            $this->cargarDatosXml();
         }
         $datos = $this->datos;
         $idEmpresa = $this->id;
@@ -409,22 +410,30 @@ class Comprobante
                     if ($code == '401' || $code == '403') {
                         //Token expirado o mal formado
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
-                        $this->container['log']->warning("Respuesta $code al enviar {$this->tipo}$clave. Error: $error");
+                        $this->container['log']->warning(
+                            "Respuesta $code al enviar {$this->tipo}$clave. Error: $error"
+                        );
                     } else {
                         //Error de estructura
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                        $this->container['log']->error("Respuesta $code al enviar {$this->tipo}$clave. Error: $error");
+                        $this->container['log']->error(
+                            "Respuesta $code al enviar {$this->tipo}$clave. Error: $error"
+                        );
                     }
-                    $this->_aplazar_envio();
+                    $this->aplazarEnvio();
                 } catch (Exception\ServerException $e) {
                     // a 500 level exception occured
                     $code = $e->getResponse()->getStatusCode();
-                    $this->container['log']->notice("Respuesta $code al enviar {$this->tipo}$clave.");
-                    $this->_aplazar_envio();
+                    $this->container['log']->notice(
+                        "Respuesta $code al enviar {$this->tipo}$clave."
+                    );
+                    $this->aplazarEnvio();
                 } catch (Exception\ConnectException $e) {
                     // a connection problem
-                    $this->container['log']->notice("Error de conexion al enviar {$this->tipo}$clave.");
-                    $this->_aplazar_envio();
+                    $this->container['log']->notice(
+                        "Error de conexion al enviar {$this->tipo}$clave."
+                    );
+                    $this->aplazarEnvio();
                 }
                 return false;
             } else {
@@ -439,7 +448,7 @@ class Comprobante
 
     /**
      * Consultar estado de comprobante en Hacienda
-     * 
+     *
      * @return bool
      */
     public function consultarEstado()
@@ -456,7 +465,7 @@ class Comprobante
             $token = (new Token($this->container, $idEmpresa))->getToken();
             if ($token) {
                 if ($this->tipo == 'R') {
-                    $this->_cargarDatosXml();
+                    $this->cargarDatosXml();
                     $consecutivo = $this->datos['NumeroConsecutivoReceptor'];
                 } else {
                     $consecutivo = false;
@@ -525,16 +534,22 @@ class Comprobante
                     if ($code == '401' || $code == '403') {
                         //Token expirado o mal formado
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
-                        $this->container['log']->warning("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                        $this->container['log']->warning(
+                            "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                        );
                     } elseif ($code == '400') {
                         //No se encuentra
                         $this->enHacienda = false;
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                        $this->container['log']->error("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                        $this->container['log']->error(
+                            "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                        );
                     } else {
                         //Error de estructura
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                        $this->container['log']->error("Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error");
+                        $this->container['log']->error(
+                            "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                        );
                     }
                 } catch (Exception\ServerException $e) {
                     // a 500 level exception occured
@@ -557,20 +572,20 @@ class Comprobante
 
     /**
      * Coger xml del comprobante enviado a Hacienda
-     * 
+     *
      * @return string
      */
     public function cogerXml()
     {
         if (!$this->datos) {
-            $this->_cargarDatosXml();
+            $this->cargarDatosXml();
         }
         return $this->xml;
     }
 
     /**
      * Coger xml de respuesta de Hacienda
-     * 
+     *
      * @return string
      */
     public function cogerXmlRespuesta()
@@ -602,17 +617,32 @@ class Comprobante
     }
 
     /**
-     * Aplazar envio de comprobante
-     * 
-     * @return null
+     * Desactivar envios futuros
+     * Se usa para remover un documento de la cola al haber un fallo permanente
+     *
+     * @return void
      */
-    private function _aplazar_envio()
+    public function desactivarEnvios()
+    {
+        $clave = $this->clave;
+        $accion_actual = $this->tipo == 'E' ? 1 : 2;
+        $sql = "UPDATE fe_cola SET accion=3
+        WHERE clave='$clave' AND accion=$accion_actual";
+        $this->container['db']->query($sql);
+    }
+
+    /**
+     * Aplazar envio de comprobante
+     *
+     * @return void
+     */
+    private function aplazarEnvio()
     {
         //Coger intentos actuales
         $clave = $this->clave;
         $accion = $this->tipo == 'E' ? 1 : 2;
         $sql = "SELECT intentos_envio FROM fe_cola WHERE clave='$clave' AND accion=$accion";
-        $intentos = $this->container['db']->query($sql)->fetch_row()[0];
+        $intentos = $this->container['db']->query($sql)->fetch_row()[0] ?? 0;
         $plazo = 28800; //por defecto 8 hrs
         $plazos = [
             300,   //5min
@@ -634,9 +664,9 @@ class Comprobante
 
     /**
      * Guardar mensaje de Hacienda
-     * 
+     *
      * @param string $xml El xml de respuesta de Hacienda
-     * 
+     *
      * @return bool
      */
     public function guardarMensajeHacienda($xml)
@@ -682,7 +712,7 @@ class Comprobante
 
     /**
      * Devuelve el detalle del mensaje que respondio Hacienda
-     * 
+     *
      * @return string
      */
     public function cogerDetalleMensaje()
@@ -697,9 +727,9 @@ class Comprobante
 
     /**
      * Leer los datos de un comprobante XML
-     * 
+     *
      * @param string $xml El xml a leer
-     * 
+     *
      * @return array El resultado
      */
     public static function analizarXML($xml)
@@ -726,8 +756,8 @@ class Comprobante
         global $ns;
         $ns = $results[1];
         global $xmlns;
-        $xmlns = '{'.$ns.'}';
-        $service = new Service;
+        $xmlns = '{' . $ns . '}';
+        $service = new Service();
         $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) {
             return XmlReader::repeatKeyValue($reader, $GLOBALS['ns']);
         };
@@ -735,36 +765,36 @@ class Comprobante
             return \Sabre\Xml\Deserializer\keyValue($reader, $GLOBALS['ns']);
         };
         $f_detalleServicio = function (\Sabre\Xml\Reader $reader) {
-            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'].'LineaDetalle');
+            return \Sabre\Xml\Deserializer\repeatingElements($reader, $GLOBALS['xmlns'] . 'LineaDetalle');
         };
         $f_codigoParser = function (\Sabre\Xml\Reader $reader) {
             return XmlReader::codigoParser($reader, $GLOBALS['ns']);
         };
 
         $elementMap = [
-            $xmlns.$root => $f_repeatKeyValue,
-            $xmlns.'Emisor' => $f_keyValue,
-            $xmlns.'Receptor' => $f_keyValue,
-            $xmlns.'Identificacion'  => $f_keyValue,
-            $xmlns.'Ubicacion' => $f_keyValue,
-            $xmlns.'Telefono' => $f_keyValue,
-            $xmlns.'Fax' => $f_keyValue,
-            $xmlns.'Descuento' => $f_keyValue,
-            $xmlns.'Impuesto' => $f_keyValue,
-            $xmlns.'Exoneracion' => $f_keyValue,
-            $xmlns.'ResumenFactura' => $f_keyValue,
-            $xmlns.'DetalleServicio' => $f_detalleServicio,
-            $xmlns.'LineaDetalle' => $f_repeatKeyValue,
-            $xmlns.'CodigoComercial' => $f_keyValue,
-            $xmlns.'Normativa' => $f_keyValue,
-            $xmlns.'CodigoTipoMoneda' => $f_keyValue,
-            $xmlns.'Otros' => $f_keyValue,
-            $xmlns.'InformacionReferencia' => $f_keyValue,
-            $xmlns.'OtroContenido' => $f_keyValue
+            $xmlns . $root => $f_repeatKeyValue,
+            $xmlns . 'Emisor' => $f_keyValue,
+            $xmlns . 'Receptor' => $f_keyValue,
+            $xmlns . 'Identificacion'  => $f_keyValue,
+            $xmlns . 'Ubicacion' => $f_keyValue,
+            $xmlns . 'Telefono' => $f_keyValue,
+            $xmlns . 'Fax' => $f_keyValue,
+            $xmlns . 'Descuento' => $f_keyValue,
+            $xmlns . 'Impuesto' => $f_keyValue,
+            $xmlns . 'Exoneracion' => $f_keyValue,
+            $xmlns . 'ResumenFactura' => $f_keyValue,
+            $xmlns . 'DetalleServicio' => $f_detalleServicio,
+            $xmlns . 'LineaDetalle' => $f_repeatKeyValue,
+            $xmlns . 'CodigoComercial' => $f_keyValue,
+            $xmlns . 'Normativa' => $f_keyValue,
+            $xmlns . 'CodigoTipoMoneda' => $f_keyValue,
+            $xmlns . 'Otros' => $f_keyValue,
+            $xmlns . 'InformacionReferencia' => $f_keyValue,
+            $xmlns . 'OtroContenido' => $f_keyValue
         ];
         if (stripos($xmlns, 'v4.2') > 0) {
             //Comprobante viejo
-            $elementMap[$xmlns.'Codigo'] = $f_codigoParser;
+            $elementMap[$xmlns . 'Codigo'] = $f_codigoParser;
         }
         $service->elementMap = $elementMap;
         return $service->parse($xml);

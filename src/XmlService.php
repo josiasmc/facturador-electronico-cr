@@ -1,13 +1,14 @@
 <?php
+
 /**
  * Clase para modificar la clase que crea xmls
- *  
- * PHP version 7.3
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
@@ -17,7 +18,7 @@ namespace Contica\Facturacion;
 
 /**
  * Todas los metodos para crear los archivos XML
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\XmlService
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -44,13 +45,13 @@ class XmlService extends \Sabre\Xml\Service
      * @param string                       $rootElementName Root name
      * @param string|array|XmlSerializable $value           Values to write
      * @param string                       $contextUri      Uri
-     * 
+     *
      * @return string
      */
-    function write(string $rootElementName, $value, string $contextUri = null) 
+    public function write(string $rootElementName, $value, string $contextUri = null)
     {
 
-        $w = new XmlWriter;
+        $w = new XmlWriter();
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
         $w->contextUri = $contextUri;
@@ -58,20 +59,19 @@ class XmlService extends \Sabre\Xml\Service
         $w->startDocument("1.0", "UTF-8");
         $w->writeElement($rootElementName, $value);
         return $w->outputMemory();
-
     }
 
     /**
      * Generate the XML signature in one go
-     * 
+     *
      * @param string|array $rootElementName Root element
      * @param string|array $value           Values to write
-     * 
+     *
      * @return string
      */
-    function writeSignature($rootElementName, $value)
+    public function writeSignature($rootElementName, $value)
     {
-        $w = new XmlWriter;
+        $w = new XmlWriter();
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
         $w->setIndent(true);
@@ -89,15 +89,15 @@ class XmlService extends \Sabre\Xml\Service
 
     /**
      * Generate XML fragrments for the signature
-     * 
+     *
      * @param string|array $rootElementName Root element
      * @param string|array $value           Values to write
-     * 
+     *
      * @return string
      */
-    function writeFragment($rootElementName, $value)
+    public function writeFragment($rootElementName, $value)
     {
-        $w = new XmlWriter;
+        $w = new XmlWriter();
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
         $w->setIndent(true);
@@ -132,20 +132,19 @@ class XmlService extends \Sabre\Xml\Service
      * @throws ParseException
      * @return array|object|string
      */
-    function parse($input, string $contextUri = null, string &$rootElementName = null) {
-
+    public function parse($input, string $contextUri = null, string &$rootElementName = null)
+    {
         if (is_resource($input)) {
             // Unfortunately the XMLReader doesn't support streams. When it
             // does, we can optimize this.
             $input = stream_get_contents($input);
         }
-        $r = new XmlReader;
+        $r = new XmlReader();
         $r->contextUri = $contextUri;
         $r->xml($input);
 
         $result = $r->parse();
         $rootElementName = $result['name'];
         return $result['value'];
-
     }
 }

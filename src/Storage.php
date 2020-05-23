@@ -1,13 +1,14 @@
 <?php
+
 /**
  * Interfaz de almacenaje y lectura de la base de datos
- * 
- * PHP version 7.2
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
@@ -17,7 +18,7 @@ namespace Contica\Facturacion;
 
 /**
  * Esta clase provee metodos relacionados a almacenaje en la base de datos
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\Storage
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -30,14 +31,14 @@ class Storage
 
     /**
      * Automatic migrations to the database
-     * 
+     *
      * @param \mysqli $db The database connection
-     * 
+     *
      * @return int Current database version
      */
-    public static function run_migrations($db)
+    public static function runMigrations($db)
     {
-        $current_version = Storage::_versionCheck($db);
+        $current_version = Storage::versionCheck($db);
         $versions = [
             1 => [
                 //Crear y agregar datos a la tabla de ajustes
@@ -103,7 +104,7 @@ class Storage
 
                 'ALTER TABLE `fe_empresas`
                     MODIFY `id_empresa` int(11) NOT NULL AUTO_INCREMENT;'
-            ], 
+            ],
             2 => ["CREATE TABLE `fe_emisiones` (
                     `id_emision` INT NOT NULL AUTO_INCREMENT ,
                     `clave` CHAR(50) NOT NULL ,
@@ -150,6 +151,12 @@ class Storage
                     ADD KEY `EMPRESA` (`id_empresa`)",
                 "ALTER TABLE `fe_recepciones`
                   MODIFY `id_recepcion` int(11) NOT NULL AUTO_INCREMENT"
+            ],
+            4 => [
+                // Cambiar columnas de clave a decimal para ahorrar espacio en tabla
+                "ALTER TABLE `fe_emisiones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
+                "ALTER TABLE `fe_recepciones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
+                "ALTER TABLE `fe_cola` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;"
             ]
         ];
         foreach ($versions as $version => $statements) {
@@ -168,12 +175,12 @@ class Storage
 
     /**
      * Database version check
-     * 
-     * @param \mysqli $db         Database connection
-     * 
+     *
+     * @param \mysqli $db  Database connection
+     *
      * @return bool
      */
-    private static function _versionCheck($db)
+    private static function versionCheck($db)
     {
         //Revisar si existe la base de datos
         $sql = "SELECT count(*) FROM information_schema.TABLES

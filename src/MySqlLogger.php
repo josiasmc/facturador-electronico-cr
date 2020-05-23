@@ -23,11 +23,11 @@ class MySqlLogger extends AbstractProcessingHandler
             $this->initialize();
         }
 
-        $this->statement->bind_param('siss', $channel, $level, $message, $time);
         $channel = $record['channel'];
         $level = $record['level'];
         $message = $record['formatted'];
         $time = $record['datetime']->format('U');
+        $this->statement->bind_param('siss', $channel, $level, $message, $time);
 
         $this->statement->execute();
     }

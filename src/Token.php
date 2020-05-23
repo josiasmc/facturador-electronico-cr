@@ -1,12 +1,13 @@
 <?php
+
 /**
  * Tokens del Ministerio de Hacienda
- * 
+ *
  * Este controlador se encarga de conseguir y mantener
  * validos los tokens con el Ministerio de Hacienda
- * 
- * PHP version 7.3
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
@@ -18,12 +19,12 @@
 
 namespace Contica\Facturacion;
 
-use \GuzzleHttp\Client;
-use \Defuse\Crypto\Crypto;
+use GuzzleHttp\Client;
+use Defuse\Crypto\Crypto;
 
 /**
- * Clase que contiene funciones para manejar tokens 
- * 
+ * Clase que contiene funciones para manejar tokens
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -39,11 +40,11 @@ class Token
     protected $db;        //la conexion a la base de datos
     protected $cryptoKey; //la llave para descifrar datos
 
-    const HTTP_TIMEOUT = 45; //timeout para usar en conexiones al IDP
+    private const HTTP_TIMEOUT = 45; //timeout para usar en conexiones al IDP
 
     /**
      * Class constructor
-     * 
+     *
      * @param array  $container Container con las dependencias
      * @param string $id        Id de la empresa
      */
@@ -67,7 +68,7 @@ class Token
 
     /**
      * Funcion para retornar un token
-     * 
+     *
      * @return String Access token, o false si hay un fallo
      */
     public function getToken()
@@ -79,27 +80,27 @@ class Token
         if ($result->num_rows > 0) {
             $row = $result->fetch_assoc();
             //Revisar si el token es valido
-            if ($this->_validToken($row['expires_in'])) {
+            if ($this->validToken($row['expires_in'])) {
                 //token existente es valido
                 return $row['access_token'];
             } else {
                 //Revisar si el refresh_token es valido
-                if ($this->_validToken($row['refresh_expires_in'])) {
+                if ($this->validToken($row['refresh_expires_in'])) {
                     //refresh token es valido
-                    return $this->_refreshToken($row['refresh_token']);
+                    return $this->refreshToken($row['refresh_token']);
                 }
             }
         }
         //Conseguir un token nuevo
-        return $this->_newToken();
+        return $this->newToken();
     }
 
     /**
      * Funcion para coger un token nuevo de Hacienda
-     * 
+     *
      * @return string El access_token que recibe o False si falla
      */
-    private function _newToken()
+    private function newToken()
     {
         //Conseguir permiso para hacer el POST
         $ratelimiter = $this->container['rate_limiter'];
@@ -108,7 +109,7 @@ class Token
             return false;
         }
         $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_REQUEST);
-        $data = $this->_getAccessDetails();
+        $data = $this->getAccessDetails();
         if ($data) {
             $uri = $data['uri_idp'];
             $params = [
@@ -126,11 +127,11 @@ class Token
                         'connect_timeout' => Token::HTTP_TIMEOUT
                     ]
                 );
-                if ($response->getStatusCode()==200) {
+                if ($response->getStatusCode() == 200) {
                     $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_200);
                     $this->container['log']->debug("Token nuevo creado para {$this->cedula}");
                     $body = $response->getBody()->__toString();
-                    $accessToken = $this->_saveToken($body);
+                    $accessToken = $this->saveToken($body);
                     return $accessToken;
                 }
             } catch (\GuzzleHttp\Exception\ClientException $e) {
@@ -143,7 +144,6 @@ class Token
                 //handles all exceptions
                 return false;
             }
-            
         } else {
             //No se pudo conseguir la informacion de conexion de la empresa
             return false;
@@ -152,12 +152,12 @@ class Token
 
     /**
      * Funcion para renovar un token con el refresh_token
-     * 
+     *
      * @param string $refreshToken El refresh_token para enviar
-     * 
+     *
      * @return string|bool El access_token devuelto, false si falla
      */
-    private function _refreshToken($refreshToken)
+    private function refreshToken($refreshToken)
     {
         //Conseguir permiso para hacer el POST
         $ratelimiter = $this->container['rate_limiter'];
@@ -166,7 +166,7 @@ class Token
             return false;
         }
         $ratelimiter->registerTransaction($this->id, RateLimiter::IDP_REQUEST);
-        $data = $this->_getAccessDetails();
+        $data = $this->getAccessDetails();
         if ($data) {
             $uri = $data['uri_idp'];
             $params = [
@@ -187,17 +187,17 @@ class Token
                     $ratelimiter->registerTransaction($this->cedula, RateLimiter::IDP_200);
                     $this->container['log']->debug("Token refrescado para {$this->cedula}");
                     $body = $response->getBody()->__toString();
-                    $accessToken = $this->_saveToken($body);
+                    $accessToken = $this->saveToken($body);
                     return $accessToken;
                 }
             } catch (\GuzzleHttp\Exception\ClientException $e) {
                 //a 400 error
                 $this->container['log']->info("Fallo 40x refrescando token para {$this->cedula}");
                 $ratelimiter->registerTransaction($this->cedula, RateLimiter::IDP_401_403);
-                return $this->_newToken();
+                return $this->newToken();
             } catch (\GuzzleHttp\Exception\ConnectException $e) {
                 // a connection problem
-                return false;                
+                return false;
             }
         }
         return false;
@@ -205,17 +205,17 @@ class Token
 
     /**
      * Funcion que guarda el token recibido de Hacienda
-     * 
+     *
      * @param string $body El cuerpo devuelto de Hacienda
-     * 
+     *
      * @return string El access_token en el cuerpo
      */
-    private function _saveToken($body)
+    private function saveToken($body)
     {
         $data = json_decode($body, true);
         if (!is_array($data)) {
             return false;
-        }        
+        }
         $now = (new \DateTime())->getTimestamp();
         //Revisar si ya hay un token guardado
         $sql = "SELECT COUNT(*) FROM fe_tokens
@@ -243,10 +243,10 @@ class Token
 
     /**
      * Funcion para recoger los datos necesarios para conectarse con Hacienda
-     * 
+     *
      * @return array Array con los datos para hacer las peticiones
      */
-    private function _getAccessDetails()
+    private function getAccessDetails()
     {
         $id = $this->id;
         $sql  = "SELECT e.usuario_mh, e.contra_mh,
@@ -267,22 +267,21 @@ class Token
         } else {
             return false;
         }
-        
     }
 
     /**
      * Funcion para revisar la vida de un token
-     * 
+     *
      * @param String $expires La fecha que se tiene que revisar
-     * 
+     *
      * @return Boolean True si es valido
      */
-    private function _validToken($expires)
+    private function validToken($expires)
     {
         $now = (new \DateTime())->getTimestamp();
         //Devuelve true si le queda mas que 45 segundos
         //45 segundos para tener tiempo con el API lento de Hacienda
-        if (((int)$expires-$now) > 45) {
+        if (((int) $expires - $now) > 45) {
             return true;
         } else {
             return false;

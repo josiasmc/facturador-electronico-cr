@@ -1,15 +1,16 @@
 <?php
+
 /**
  * Interfaz para acceder a las empresas del facturador
- * 
+ *
  * Funciones para crear, modificar, y coger información de empresas
- * 
- * PHP version 7.1
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link     https://github.com/josiasmc/facturador-electronico-cr
@@ -17,11 +18,11 @@
 
 namespace Contica\Facturacion;
 
-use \Defuse\Crypto\Crypto;
+use Defuse\Crypto\Crypto;
 
 /**
  * Class providing functions to manage companies
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\Empresas
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -37,7 +38,7 @@ class Empresas
 
     /**
      * Class constructor
-     * 
+     *
      * @param array $container The Invoicer container
      */
     public function __construct($container)
@@ -48,9 +49,9 @@ class Empresas
 
     /**
      * Revisar si ya hay una empresa con cierta cedula
-     * 
+     *
      * @param int $cedula La cedula de la empresa
-     * 
+     *
      * @return int Id unico de la empresa si existe
      */
     public function buscarPorCedula($cedula)
@@ -73,9 +74,9 @@ class Empresas
 
     /**
      * Crear una nueva empresa para el cliete actual
-     * 
+     *
      * @param array $data Informacion de la empresa
-     * 
+     *
      * @return int El ID de la empresa creada
      */
     public function add($data)
@@ -84,12 +85,12 @@ class Empresas
         $client_id = $this->container['client_id'];
         $data['id_cliente'] = $client_id;
 
-        $prepedData = $this->_prepData($data);
+        $prepedData = $this->prepData($data);
         $fields = "";
         $values = "";
         foreach ($prepedData as $key => $value) {
             $fields .= $key . ', ';
-            $values .= $this->_prepValue($value) . ', ';
+            $values .= $this->prepValue($value) . ', ';
         }
         $fields = rtrim($fields, ", ");
         $values = rtrim($values, ", ");
@@ -105,20 +106,20 @@ class Empresas
 
     /**
      * Modificar una empresa existente
-     * 
+     *
      * @param int   $id   El ID unico de la empresa
      * @param array $data La informacion de la empresa a modificar
-     * 
+     *
      * @return bool resultado
      */
     public function modify($id, $data)
     {
         $db = $this->container['db'];
         $client_id = $this->container['client_id'];
-        $prepedData = $this->_prepData($data);
+        $prepedData = $this->prepData($data);
         $values = '';
         foreach ($prepedData as $key => $value) {
-            $values .= $key . '=' . $this->_prepValue($value) . ', ';
+            $values .= $key . '=' . $this->prepValue($value) . ', ';
         }
         $values = rtrim($values, ', ');
         $sql = "UPDATE fe_empresas SET $values
@@ -137,10 +138,10 @@ class Empresas
 
     /**
      * Get an existing company
-     * 
+     *
      * @param int $id Id unico de la empresa.
      *                Si no se provee, devuelve todas las del cliente
-     * 
+     *
      * @return array Toda la informacion de la empresa, sin la llave criptografica
      */
     public function get($id = '')
@@ -181,9 +182,9 @@ class Empresas
 
     /**
      * Coger la llave criptografica con el PIN de la empresa
-     * 
+     *
      * @param int $id El id unico de la empresa
-     * 
+     *
      * @return array El certificado con el pin
      */
     public function getCert($id)
@@ -205,12 +206,12 @@ class Empresas
 
     /**
      * Prepare company data for database storage
-     * 
+     *
      * @param array $data The data to prepare
-     * 
+     *
      * @return array The prepared data
      */
-    private function _prepData($data)
+    private function prepData($data)
     {
         $db = $this->container['db'];
         $cryptoKey = $this->container['crypto_key'];
@@ -245,14 +246,14 @@ class Empresas
         return $prepd;
     }
 
-    /** 
+    /**
      * Quote non integer strings with ''
-     * 
+     *
      * @param String $value Text needing quotes
-     * 
+     *
      * @return String
      */
-    private function _prepValue($value)
+    private function prepValue($value)
     {
         if (filter_var($value, FILTER_VALIDATE_INT) === false) {
             $value = "'" . $value . "'";

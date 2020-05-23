@@ -1,24 +1,26 @@
 <?php
+
 /**
  * Clase para leer los comprobantes
- *  
- * PHP version 7.3
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\eFacturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
 namespace Contica\Facturacion;
-use \Sabre\Xml\Reader;
+
+use Sabre\Xml\Reader;
 
 /**
  * Funciones especiales para leer xmls de factura electronica
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\XmlReader
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -26,14 +28,14 @@ use \Sabre\Xml\Reader;
  * @version  Release: <package-version>
  * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
-class XmlReader
+class XmlReader extends \Sabre\Xml\Reader
 {
     /**
      * Lector para nodos que aparecen en fila
-     * 
+     *
      * @param Reader $reader    The deserializer reader
      * @param string $namespace Root namespace
-     * 
+     *
      * @return object
      */
     public static function repeatKeyValue(Reader $reader, string $namespace)
@@ -48,7 +50,6 @@ class XmlReader
 
         $reader->read();
         do {
-
             if ($reader->nodeType === Reader::ELEMENT) {
                 if ($namespace !== null && $reader->namespaceURI === $namespace) {
                     $localName = $reader->localName;
@@ -78,10 +79,10 @@ class XmlReader
 
     /**
      * Lector para el campo de Codigo
-     * 
+     *
      * @param Reader $reader    The deserializer reader
      * @param string $namespace Root namespace
-     * 
+     *
      * @return mixed
      */
     public static function codigoParser(Reader $reader, string $namespace)
@@ -101,7 +102,7 @@ class XmlReader
             if ($type === Reader::TEXT || $type === Reader::CDATA) {
                 $text .= $reader->value;
                 $reader->read();
-            } else if ($type === Reader::ELEMENT) {
+            } elseif ($type === Reader::ELEMENT) {
                 $values[$reader->localName] = $reader->parseCurrentElement()['value'];
             } else {
                 $reader->read();

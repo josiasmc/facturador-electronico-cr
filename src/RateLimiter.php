@@ -1,14 +1,15 @@
 <?php
+
 /**
  * Estadisticas de uso del API de Hacienda
  * Nota: Los limites de acceso unicamente se aplican a Sandbox
- *  
- * PHP version 7.3
- * 
+ *
+ * PHP version 7.4
+ *
  * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2020 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
@@ -18,7 +19,7 @@ namespace Contica\Facturacion;
 
 /**
  * Clase para manejar los limites de uso del API de Hacienda
- * 
+ *
  * @category Facturacion-electronica
  * @package  Contica\Facturacion\Estadisticas
  * @author   Josias Martin <josias@solucionesinduso.com>
@@ -34,20 +35,20 @@ class RateLimiter
     protected $limits; //Limites para las reglas disponibles
     protected $log; //Logger del componente
 
-    const REQUESTS = 0; //Consultas o envios totales
-    const POST_202 = 1; //Envios con resultado 202
-    const POST_401_403 = 2; //Envios con token expirado o mal formado
-    const POST_40X = 4; //Reenvios o estructura mal formada
-    const GET_200 = 8; //Consultas con estado 200
-    const GET_40X = 16; //Consultas con tokens o clases invalidas
-    const IDP_200 = 32; //Solicitud de token
-    const IDP_401_403 = 64; //Solicitud con token o claves invalidas
-    const IDP_REQUEST = 128; //Uso interno para restringir consultas al IDP
+    public const REQUESTS = 0; //Consultas o envios totales
+    public const POST_202 = 1; //Envios con resultado 202
+    public const POST_401_403 = 2; //Envios con token expirado o mal formado
+    public const POST_40X = 4; //Reenvios o estructura mal formada
+    public const GET_200 = 8; //Consultas con estado 200
+    public const GET_40X = 16; //Consultas con tokens o clases invalidas
+    public const IDP_200 = 32; //Solicitud de token
+    public const IDP_401_403 = 64; //Solicitud con token o claves invalidas
+    public const IDP_REQUEST = 128; //Uso interno para restringir consultas al IDP
 
 
     /**
      * Constructor del controlador de API
-     * 
+     *
      * @param array $container   El contenedor del facturador
      */
     public function __construct($container)
@@ -71,24 +72,21 @@ class RateLimiter
 
     /**
      * Coger la cedula usando ID de empresa
-     * 
+     *
      * @param int ID de empresa
-     * 
+     *
      * @return string Cedula de la empresa
      */
-    private function getCedula($id)
+    private function getCedula(int $id)
     {
         //Coger la cedula de la empresa
         if (isset($this->id_cache[$id])) {
             $cedula = $this->id_cache[$id];
         } else {
-            $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=?";
-            $stmt = $this->db->prepare($sql);
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $r = $stmt->get_result()->fetch_row();
-            $aplicar_limite = $r[1] == 1; //Limites unicamente en staging
-            $cedula = $aplicar_limite ? $r[0] : 0;
+            $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=$id";
+            $r = $this->db->query($sql)->fetch_row();
+            $aplicar_limite = ($r[1] ?? 1) == 1; //Limites unicamente en staging
+            $cedula = $aplicar_limite ? ($r[0] ?? 0) : 0;
             $this->id_cache[$id] = $cedula;
         }
         return $cedula;
@@ -96,9 +94,9 @@ class RateLimiter
 
     /**
      * Conseguir los limites actuales del contribuyente
-     * 
+     *
      * @param string $cedula Cedula del contribuyente
-     * 
+     *
      * @return array Los limites restantes para cada regla
      */
     private function getUserLimits($cedula)
@@ -109,7 +107,7 @@ class RateLimiter
         $refresh = false;
         if (isset($rate_cache[$cedula])) {
             //Consultar si los datos son frescos
-            if($rate_cache[$cedula]['last_query'] < $timestamp - 15) {
+            if ($rate_cache[$cedula]['last_query'] < $timestamp - 15) {
                 //Datos con mas de 15 segundos, refrescar
                 $refresh = true;
             }
@@ -146,15 +144,17 @@ class RateLimiter
 
     /**
      * Ver si el contribuyente puede hacer un envio
-     * 
+     *
      * @param int $id El id unico de la empresa
-     * 
+     *
      * @return bool Si tiene permiso para enviar
      */
     public function canPost($id)
     {
         $cedula = $this->getCedula($id);
-        if ($cedula === 0) return true; //Contribuyente sin limites
+        if ($cedula === 0) {
+            return true; //Contribuyente sin limites
+        }
 
         $userLimits = $this->getUserLimits($cedula);
 
@@ -168,15 +168,17 @@ class RateLimiter
 
     /**
      * Ver si el contribuyente puede hacer una consulta
-     * 
+     *
      * @param int $id El id unico de la empresa
-     * 
+     *
      * @return bool Si tiene permiso para consultar
      */
     public function canGet($id)
     {
         $cedula = $this->getCedula($id);
-        if ($cedula === 0) return true; //Contribuyente sin limites
+        if ($cedula === 0) {
+            return true; //Contribuyente sin limites
+        }
 
         $userLimits = $this->getUserLimits($cedula);
 
@@ -189,15 +191,17 @@ class RateLimiter
 
     /**
      * Ver si el contribuyente puede conseguir un token
-     * 
+     *
      * @param int $id El id unico de la empresa
-     * 
+     *
      * @return bool Si tiene permiso para coger token
      */
     public function canGetToken($id)
     {
         $cedula = $this->getCedula($id);
-        if ($cedula === 0) return true; //Contribuyente sin limites
+        if ($cedula === 0) {
+            return true; //Contribuyente sin limites
+        }
         
         $userLimits = $this->getUserLimits($cedula);
 
@@ -210,10 +214,10 @@ class RateLimiter
 
     /**
      * Registrar una transaccion con el API de Hacienda
-     * 
+     *
      * @param $id   ID de la empresa
      * @param $type Tipo de transaccion
-     * 
+     *
      * @return bool
      */
     public function registerTransaction($id, $type)
@@ -223,7 +227,9 @@ class RateLimiter
         }
 
         $cedula = $this->getCedula($id);
-        if ($cedula === 0) return true; //Contribuyente sin limites no necesita registros
+        if ($cedula === 0) {
+            return true; //Contribuyente sin limites no necesita registros
+        }
         
         $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
 
