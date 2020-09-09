@@ -789,6 +789,7 @@ class Comprobante
             $xmlns . 'ResumenFactura' => $f_keyValue,
             $xmlns . 'DetalleServicio' => $f_detalleServicio,
             $xmlns . 'LineaDetalle' => $f_repeatKeyValue,
+            $xmlns . 'OtrosCargos' => $f_repeatKeyValue,
             $xmlns . 'CodigoComercial' => $f_keyValue,
             $xmlns . 'Normativa' => $f_keyValue,
             $xmlns . 'CodigoTipoMoneda' => $f_keyValue,
