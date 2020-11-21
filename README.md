@@ -332,17 +332,17 @@ envíe un correo electrónico a josias@solucionesinduso.com.
 
 Licencia MIT (MIT). Favor ver [LICENCIA](LICENSE.md) para más información.
 
-[ico-version]: https://img.shields.io/packagist/v/contica/facturacion-electronica-cr.svg?style=flat-square
+[ico-version]: https://img.shields.io/packagist/v/contica/facturador-electronico-cr.svg?style=flat-square
 [ico-license]: https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square
-[ico-travis]: https://img.shields.io/travis/contica/facturacion-electronica-cr/master.svg?style=flat-square
-[ico-scrutinizer]: https://img.shields.io/scrutinizer/coverage/g/contica/facturacion-electronica-cr.svg?style=flat-square
-[ico-code-quality]: https://img.shields.io/scrutinizer/g/contica/facturacion-electronica-cr.svg?style=flat-square
-[ico-downloads]: https://img.shields.io/packagist/dt/contica/facturacion-electronica-cr.svg?style=flat-square
+[ico-travis]: https://img.shields.io/travis/contica/facturador-electronico-cr/master.svg?style=flat-square
+[ico-scrutinizer]: https://img.shields.io/scrutinizer/coverage/g/contica/facturador-electronico-cr.svg?style=flat-square
+[ico-code-quality]: https://img.shields.io/scrutinizer/g/contica/facturador-electronico-cr.svg?style=flat-square
+[ico-downloads]: https://img.shields.io/packagist/dt/contica/facturador-electronico-cr.svg?style=flat-square
 
-[link-packagist]: https://packagist.org/packages/contica/facturacion-electronica-cr
-[link-travis]: https://travis-ci.org/contica/facturacion-electronica-cr
-[link-scrutinizer]: https://scrutinizer-ci.com/g/contica/facturacion-electronica-cr/code-structure
-[link-code-quality]: https://scrutinizer-ci.com/g/contica/facturacion-electronica-cr
-[link-downloads]: https://packagist.org/packages/contica/facturacion-electronica-cr
+[link-packagist]: https://packagist.org/packages/contica/facturador-electronico-cr
+[link-travis]: https://travis-ci.org/contica/facturador-electronico-cr
+[link-scrutinizer]: https://scrutinizer-ci.com/g/contica/facturador-electronico-cr/code-structure
+[link-code-quality]: https://scrutinizer-ci.com/g/contica/facturador-electronico-cr
+[link-downloads]: https://packagist.org/packages/contica/facturador-electronico-cr
 [link-author]: https://github.com/josiasmc
 [link-contributors]: ../../contributors
