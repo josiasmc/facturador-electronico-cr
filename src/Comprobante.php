@@ -19,6 +19,7 @@ namespace Contica\Facturacion;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception;
 use Sabre\Xml\Service;
+use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
 
 /**
  * Class providing functions to manage electronic invoices
@@ -172,10 +173,6 @@ class Comprobante
             return false;
         }
         $db = $this->container['db'];
-        $storage_path = $this->container['storage_path'];
-        if ($storage_path == '') {
-            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
-        }
         $clave = $this->clave;
         $this->estado = 1; //En cola
         if ($this->tipo == 'R') {
@@ -193,7 +190,7 @@ class Comprobante
             $table = 'fe_emisiones';
             $accion = 1; //ENVIAR_EMISION
         }
-        $this->generateFilenames($zip_path, $filename);
+        $this->generateFilenames($zip_path, $zip_name, $filename);
 
         //Guardar el registro
         $sql = "INSERT INTO $table (clave, id_empresa, estado)
@@ -209,11 +206,21 @@ class Comprobante
 
         //Guardar el archivo XML
         $zip = new \ZipArchive();
-        if ($zip->open($zip_path, \ZipArchive::CREATE) !== true) {
-            throw new \Exception("Fallo al abrir <$zip_path>\n");
+        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+        if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
+            throw new \Exception("Fallo al abrir <$zip_name>\n");
         }
         $zip->addFromString($filename, $this->xml);
         $zip->close();
+
+        $contents = file_get_contents($tmpfile);
+        unlink($tmpfile);
+        $filesystem = $this->container['filesystem'];
+        try {
+            $filesystem->write($zip_path . $zip_name, $contents);
+        } catch (FilesystemException | UnableToWriteFile $exception) {
+            throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
+        }
         return true;
     }
 
@@ -222,31 +229,19 @@ class Comprobante
      *
      * @return bool true si se logra
      */
-    private function generateFilenames(&$path, &$filename)
+    private function generateFilenames(&$path, &$zipname, &$filename)
     {
-        $path = $this->container['storage_path'];
-        if ($path == '') {
-            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
-        }
         $clave = $this->clave;
-        $path .= "{$this->id}/";
-        if (!file_exists($path)) {
-            mkdir($path);
-        }
-        $path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
-        if (!file_exists($path)) {
-            mkdir($path);
-        }
+        $path = "{$this->id}/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
 
         if ($this->tipo == 'R') {
-            $zip_name = 'R' . $clave . '.zip';
+            $zipname = 'R' . $clave . '.zip';
             $tipo_doc = 'MR';
         } else {
-            $zip_name = 'E' . $clave . '.zip';
+            $zipname = 'E' . $clave . '.zip';
             $tipo_doc = substr($this->consecutivo, 9, 1) - 1;
             $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
         }
-        $path .= $zip_name;
         $filename = $tipo_doc . $clave . '.xml';
     }
 
@@ -257,20 +252,31 @@ class Comprobante
      */
     private function cargarDatosXml()
     {
-        $this->generateFilenames($zip_path, $filename);
+        $this->generateFilenames($zip_path, $zip_name, $filename);
         //Abrir el archivo XML
+        $filesystem = $this->container['filesystem'];
+        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+        try {
+            $contents = $filesystem->read($zip_path . $zip_name);
+            file_put_contents($tmpfile, $contents);
+        } catch (FilesystemException | UnableToReadFile $exception) {
+            throw new \Exception("No se pudo leer el archivo $zip_name");
+        }
+
         $zip = new \ZipArchive();
-        if ($zip->open($zip_path) !== true) {
-            throw new \Exception("Fallo al abrir <$zip_path>\n");
+        if ($zip->open($tmpfile) !== true) {
+            throw new \Exception("Fallo al abrir <$zip_name>\n");
         }
         if ($zip->locateName($filename) !== false) {
             //XML esta guardado
             $this->xml = $zip->getFromName($filename);
             $this->datos = Comprobante::analizarXML($this->xml);
             $zip->close();
+            unlink($tmpfile);
             return true;
         }
         $zip->close();
+        unlink($tmpfile);
         return false;
     }
 
@@ -330,23 +336,34 @@ class Comprobante
                         $tipoId = '04';
                     }
                     //Conseguir el archivo XML recepcionado
-                    $path = $this->container['storage_path'];
-                    $path .= "$idEmpresa/" . "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+                    $path = "$idEmpresa/" . "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
                     $zip_name = 'R' . $clave . '.zip';
                     $tipo_doc = substr($clave, 30, 1) - 1;
                     $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
                     $filename = $tipo_doc . $clave . '.xml';
 
+                    $filesystem = $this->container['filesystem'];
+                    $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+                    try {
+                        $contents = $filesystem->read($path . $zip_name);
+                        file_put_contents($tmpfile, $contents);
+                    } catch (FilesystemException | UnableToReadFile $exception) {
+                        throw new \Exception("No se pudo leer el archivo $zip_name");
+                    }
+
                     $zip = new \ZipArchive();
-                    if ($zip->open($path . $zip_name) !== true) {
+                    if ($zip->open($tmpfile) !== true) {
                         throw new \Exception("Fallo al abrir <$zip_name> para enviar MR\n");
                     }
 
                     if ($zip->locateName($filename) !== false) {
                         $xmlData = Comprobante::analizarXML($zip->getFromName($filename));
                     } else {
+                        $zip->close();
+                        unlink($tmpfile);
                         return false;
                     }
+                    unlink($tmpfile);
                     $zip->close();
 
                     $table = 'fe_recepciones';
@@ -593,16 +610,23 @@ class Comprobante
         $clave = $this->clave;
 
         //Guardar el archivo
-        $storage_path = $this->container['storage_path'];
-        $storage_path .= "{$this->id}/";
-        $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+        $storage_path = "{$this->id}/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
 
         $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
         $filename .= $clave . '.xml';
         $zip_name = $this->tipo . $clave . '.zip';
 
+        $filesystem = $this->container['filesystem'];
+        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+        try {
+            $contents = $filesystem->read($storage_path . $zip_name);
+            file_put_contents($tmpfile, $contents);
+        } catch (FilesystemException | UnableToReadFile $exception) {
+            throw new \Exception("No se pudo leer el archivo $zip_name");
+        }
+
         $zip = new \ZipArchive();
-        if ($zip->open($storage_path . $zip_name) !== true) {
+        if ($zip->open($tmpfile) !== true) {
             throw new \Exception("Fallo al abrir <$zip_name> abriendo MR\n");
         }
 
@@ -610,8 +634,11 @@ class Comprobante
             //XML esta guardado
             $xml = $zip->getFromName($filename);
         } else {
+            unlink($tmpfile);
+            $zip->close();
             return false;
         }
+        unlink($tmpfile);
         $zip->close();
         return $xml;
     }
@@ -675,28 +702,47 @@ class Comprobante
      */
     public function guardarMensajeHacienda($xml)
     {
-        $storage_path = $this->container['storage_path'];
-        if ($storage_path == '') {
-            throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
-        }
-
         if ($this->id) {
             $clave = $this->clave;
+            $filesystem = $this->container['filesystem'];
 
             //Guardar el archivo
-            $storage_path .= "{$this->id}/";
-            $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+            $storage_path = "{$this->id}/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
 
             $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
             $filename .= $clave . '.xml';
             $zip_name = $this->tipo . $clave . '.zip';
 
             $zip = new \ZipArchive();
-            if ($zip->open($storage_path . $zip_name) !== true) {
-                throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
+            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+
+            if ($filesystem->fileExists($storage_path . $zip_name)) {
+                //Abrimos el existente y le añadimos los archivos
+                try {
+                    $contents = $filesystem->read($storage_path . $zip_name);
+                    file_put_contents($tmpfile, $contents);
+                } catch (FilesystemException | UnableToReadFile $exception) {
+                    throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                }
+                if ($zip->open($tmpfile) !== true) {
+                    throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
+                }
+            } else {
+                //Creamos uno nuevo
+                if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
+                    throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
+                }
             }
+
             $zip->addFromString($filename, $xml); //Lo reemplaza si ya existe
             $zip->close();
+            $contents = file_get_contents($tmpfile);
+            unlink($tmpfile);
+            try {
+                $filesystem->write($storage_path . $zip_name, $contents);
+            } catch (FilesystemException | UnableToWriteFile $exception) {
+                throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
+            }
 
             //Guardar el estado
             $datosXML = Comprobante::analizarXML($xml);

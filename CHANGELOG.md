@@ -6,6 +6,18 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.0] - 2020-11-21
+
+### Added
+
+- Opción para guardar los comprobantes en almacenaje compatible con S3
+
+## [3.2.1] - 2020-08-09
+
+### Fixed
+
+- Leer información en `OtrosCargos` al analizar xmls
+
 ## [3.2.0] - 2020-05-23
 
 ### Added

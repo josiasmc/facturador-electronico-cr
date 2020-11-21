@@ -22,6 +22,10 @@ namespace Contica\Facturacion;
 use Defuse\Crypto\Key;
 use Exception;
 use Monolog\Logger;
+use League\Flysystem\Local\LocalFilesystemAdapter;
+use Aws\S3\S3Client;
+use League\Flysystem\AwsS3V3\AwsS3V3Adapter;
+use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
 
 /**
  * El proveedor de facturacion
@@ -40,17 +44,18 @@ class FacturadorElectronico
     /**
      * Invoicer constructor
      *
-     * @param \mysqli $db       Conexion a MySql, conectado a la tabla correspondiente
-     * @param array   $settings Llave para utilizar en encriptado de datos en la BD
+     * @param \mysqli $db       Conexion a MySql, conectado a la base de datos correspondiente
+     * @param array   $settings Ajustes del facturador
      */
     public function __construct($db, $settings = [])
     {
-        // Initialize the container
+        // Ajustes predeterminados
         $container = array_merge([
-            'crypto_key' => '',
-            'client_id' => 0,
-            'storage_path' => '',
-            'callback_url' => ''
+            'crypto_key' => '',       // Llave para utilizar en encriptado de datos en la BD
+            'client_id' => 0,         // ID de empresa
+            'storage_path' => '',     // Ruta para guardar los comprobantes
+            'callback_url' => '',     // URL para Hacienda enviar las respuestas
+            'storage_type' => 'local' // Lugar en que se guardan los comprobantes. 'local' | 's3'
         ], $settings);
 
         $crypto_key = $container['crypto_key'];
@@ -63,6 +68,26 @@ class FacturadorElectronico
         $log->pushHandler(new MySqlLogger($db, $loglevel));
         $container['log'] = $log;
         $container['rate_limiter'] = new RateLimiter($container);
+
+        // Crear la conexion al sistema de archivos
+        if ($container['storage_type'] == 'local') {
+            $storage_path = $container['storage_path'];
+            if ($storage_path == '') {
+                throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+            }
+            $adapter = new LocalFilesystemAdapter($container['storage_path']);
+        } elseif ($container['storage_type'] == 's3') {
+            if (!is_array($container['s3_client_options'])) {
+                throw new Exception('Error al conectarse al almacenaje S3. No se suministraron las opciones de la conexión.');
+            }
+            $client = new S3Client($container['s3_client_options']);
+            if (!isset($container['s3_bucket_name'])) {
+                throw new Exception('Error al conectarse al almacenaje S3. No se especificó el nombre del bucket.');
+            }
+            $adapter = new AwsS3V3Adapter($client, $container['s3_bucket_name']);
+        }
+        $filesystem = new \League\Flysystem\Filesystem($adapter);
+        $container['filesystem'] = $filesystem;
 
         $this->container = $container;
     }
@@ -280,26 +305,41 @@ class FacturadorElectronico
         //Guardar el XML recepcionado si se envia
         if ($xml) {
             $clave = $datos['Clave'];
-            $path = $this->container['storage_path'];
-            $path .= "$id_empresa/";
-            if (!file_exists($path)) {
-                mkdir($path);
-            }
-            $path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
-            if (!file_exists($path)) {
-                mkdir($path);
-            }
+            $filesystem = $this->container['filesystem'];
+            $path = "$id_empresa/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
             $tipo_doc = substr($clave, 30, 1) - 1;
             $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
             $filename = $tipo_doc . $clave . '.xml';
             $zip_name = 'R' . $clave . '.zip';
     
             $zip = new \ZipArchive();
-            if ($zip->open($path . $zip_name, \ZipArchive::CREATE) !== true) {
-                throw new \Exception("Fallo al abrir <$zip_name>\n");
+            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+            if ($filesystem->fileExists($path . $zip_name)) {
+                //Abrimos el existente y le añadimos los archivos
+                try {
+                    $contents = $filesystem->read($path . $zip_name);
+                    file_put_contents($tmpfile, $contents);
+                } catch (FilesystemException | UnableToReadFile $exception) {
+                    throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                }
+                if ($zip->open($tmpfile) !== true) {
+                    throw new \Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
+                }
+            } else {
+                //Creamos uno nuevo
+                if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
+                    throw new \Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
+                }
             }
             $zip->addFromString($filename, $xml);
             $zip->close();
+            $contents = file_get_contents($tmpfile);
+            unlink($tmpfile);
+            try {
+                $filesystem->write($path . $zip_name, $contents);
+            } catch (FilesystemException | UnableToWriteFile $exception) {
+                throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
+            }
         }
 
         //Verificar el estado del documento que se esta recepcionando
@@ -426,9 +466,7 @@ class FacturadorElectronico
             }
             
             //Conseguir el archivo
-            $storage_path = $this->container['storage_path'];
-            $storage_path .= "$id/";
-            $storage_path .= "20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+            $storage_path = "$id/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
 
             $zip_name = $lugar . $clave . '.zip';
             if ($tipo == 2) {
@@ -441,18 +479,30 @@ class FacturadorElectronico
             }
             $filename = $tipo_doc . $clave . '.xml';
 
+            $filesystem = $this->container['filesystem'];
+            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+            try {
+                $contents = $filesystem->read($storage_path . $zip_name);
+                file_put_contents($tmpfile, $contents);
+            } catch (FilesystemException | UnableToReadFile $exception) {
+                throw new \Exception("No se pudo leer el archivo <{$zip_name}>");
+            }
+            
             $zip = new \ZipArchive();
-            if ($zip->open($storage_path . $zip_name) !== true) {
-                throw new \Exception("Fallo al abrir <$zip_name> abriendo xml\n");
+            if ($zip->open($tmpfile) !== true) {
+                throw new \Exception("Fallo al abrir <{$zip_name}> abriendo xml\n");
             }
 
             if ($zip->locateName($filename) !== false) {
                 //XML esta guardado
                 $xml = $zip->getFromName($filename);
             } else {
+                $zip->close();
+                unlink($tmpfile);
                 return false;
             }
             $zip->close();
+            unlink($tmpfile);
             return $xml;
         } else {
             return false;

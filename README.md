@@ -59,7 +59,18 @@ ajuste `crypto_key` en la lista de ajustes.
 $ajustes = [
     'storage_path' => '', // ruta completa en donde guardar los comprobantes
     'crypto_key' => '',   // (opcional) Llave para encriptar datos de conexion
-    'callback_url' => ''  // (opcional) URL donde se recibe el callback
+    'callback_url' => '',  // (opcional) URL donde se recibe el callback
+    'storage_type' => 'local', // 'local' o 's3' para el tipo de almacenaje
+    's3_client_options' => [ // ajustes opcionales si se usa almacenaje s3
+        'credentials' => [
+            'key'    => 'llave',
+            'secret' => 'secreto'
+        ],
+        'endpoint' => 'https://us-east-1.linodeobjects.com', // (opcional)
+        'region' => 'region', // por ej, us-east-1
+        'version' => 'latest', // version
+    ],
+    's3_bucket_name' => 'nombre_de_bucket' // (opcional) nombre de balde en s3
 ];
 
 /**
