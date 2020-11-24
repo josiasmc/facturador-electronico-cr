@@ -205,17 +205,31 @@ class Comprobante
         $db->query($sql);
 
         //Guardar el archivo XML
+        $filesystem = $this->container['filesystem'];
         $zip = new \ZipArchive();
         $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
-        if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
-            throw new \Exception("Fallo al abrir <$zip_name>\n");
+        if ($this->tipo == 'R' && $filesystem->fileExists($zip_path . $zip_name)) {
+            //Abrimos el existente y le añadimos los archivos
+            try {
+                $contents = $filesystem->read($zip_path . $zip_name);
+                file_put_contents($tmpfile, $contents);
+            } catch (FilesystemException | UnableToReadFile $exception) {
+                throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.");
+            }
+            if ($zip->open($tmpfile) !== true) {
+                throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
+            }
+        } else {
+            //Creamos uno nuevo
+            if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
+                throw new \Exception("Fallo al abrir <$zip_name>\n");
+            }
         }
         $zip->addFromString($filename, $this->xml);
         $zip->close();
 
         $contents = file_get_contents($tmpfile);
         unlink($tmpfile);
-        $filesystem = $this->container['filesystem'];
         try {
             $filesystem->write($zip_path . $zip_name, $contents);
         } catch (FilesystemException | UnableToWriteFile $exception) {
