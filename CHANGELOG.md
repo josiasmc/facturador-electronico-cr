@@ -6,6 +6,18 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.2] - 2021-09-29
+
+### Fixed
+
+- Actualización a dependencias
+
+## [3.3.1] - 2020-11-23
+
+### Fixed
+
+- Arreglo al almacenar recepciones cuando no existe el archivo zip
+
 ## [3.3.0] - 2020-11-21
 
 ### Added
