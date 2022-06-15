@@ -168,6 +168,9 @@ class Storage
                 "ALTER TABLE `fe_emisiones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
                 "ALTER TABLE `fe_recepciones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
                 "ALTER TABLE `fe_cola` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;"
+            ],
+            5 => [
+                "UPDATE fe_ambientes SET `uri_api`='https://api-sandbox.comprobanteselectronicos.go.cr/recepcion/v1/' WHERE `id_ambiente`=1"
             ]
         ];
         foreach ($versions as $version => $statements) {
