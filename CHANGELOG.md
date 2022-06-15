@@ -6,6 +6,14 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.3] - 2022-06-15
+
+### Fixed
+
+- Actualización a dependencias
+- Permitir varios documentos de referencia
+- Actualizar URL de Hacienda para el ambiente de pruebas
+
 ## [3.3.2] - 2021-09-29
 
 ### Fixed
