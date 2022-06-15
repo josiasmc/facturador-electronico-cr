@@ -132,7 +132,22 @@ class Comprobante
                 $situacion = 1; //Normal
             }
             if (isset($datos['InformacionReferencia'])) {
-                if ($datos['InformacionReferencia']['TipoDoc'] == '08') {
+                // Revisar a ver si viene una referencia del tipo de documento de contingencia
+                $arrayKeys = array_keys($datos['InformacionReferencia']);
+                $ref = null;
+                if (is_numeric($arrayKeys[0])) {
+                    // Este documento tiene multiples referencias
+                    foreach ($datos['InformacionReferencia'] as $referencia) {
+                        // Revisar cada referencia
+                        if ($referencia['TipoDoc'] == '08') {
+                            $ref = $referencia;
+                            break;
+                        }
+                    }
+                } else {
+                    $ref = $datos['InformacionReferencia'];
+                }
+                if ($ref && $ref['TipoDoc'] == '08') {
                     $situacion = 2; //Contingencia
                 }
             }
@@ -854,7 +869,7 @@ class Comprobante
             $xmlns . 'Normativa' => $f_keyValue,
             $xmlns . 'CodigoTipoMoneda' => $f_keyValue,
             $xmlns . 'Otros' => $f_keyValue,
-            $xmlns . 'InformacionReferencia' => $f_keyValue,
+            $xmlns . 'InformacionReferencia' => $f_repeatKeyValue,
             $xmlns . 'OtroContenido' => $f_keyValue
         ];
         if (stripos($xmlns, 'v4.2') > 0) {
