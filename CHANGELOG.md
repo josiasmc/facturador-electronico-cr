@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.4] - 2022-07-21
+
+### Fixed
+
+- Arreglar falta de aplazar envios cuando no se puede conseguir un token para el API
+
 ## [3.3.3] - 2022-06-15
 
 ### Fixed
