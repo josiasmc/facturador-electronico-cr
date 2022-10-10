@@ -456,6 +456,8 @@ class Comprobante
                         $this->container['log']->debug("{$this->tipo}$clave enviado. Respuesta $code");
                         return true;
                     }
+                    // Algun estado desconocido
+                    $this->aplazarEnvio();
                     return false;
                 } catch (Exception\ClientException $e) {
                     // a 400 level exception occured
@@ -493,10 +495,12 @@ class Comprobante
                 return false;
             } else {
                 //Fallo en coger token
+                $this->aplazarEnvio();
                 return false;
             }
         } else {
             //Limite exedido
+            $this->aplazarEnvio();
             return false;
         }
     }
