@@ -6,6 +6,10 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.4] - 2022-10-10
+
+- No dar error al intentar guardar una emision mas de una vez
+
 ## [3.3.3] - 2022-06-15
 
 ### Fixed

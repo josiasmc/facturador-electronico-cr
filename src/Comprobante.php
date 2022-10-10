@@ -58,7 +58,7 @@ class Comprobante
     {
         date_default_timezone_set('America/Costa_Rica');
         $this->container = $container;
-        
+
         if (isset($datos['clave']) && isset($datos['tipo'])) {
             //Cargar un comprobante que ya esta hecho
             $clave = $datos['clave'];
@@ -76,7 +76,7 @@ class Comprobante
                 $this->estado = 2;
                 return;
             }
-            
+
             $db = $container['db'];
 
             $stmt = $db->prepare(
@@ -191,14 +191,6 @@ class Comprobante
         $clave = $this->clave;
         $this->estado = 1; //En cola
         if ($this->tipo == 'R') {
-            //Borrar recepcion previa si existe
-            $sql = "DELETE FROM fe_recepciones
-            WHERE clave='$clave' AND id_empresa={$this->id}";
-            $db->query($sql);
-            $sql = "DELETE FROM fe_cola
-            WHERE clave='$clave' AND id_empresa={$this->id} AND accion=2";
-            $db->query($sql);
-
             $table = 'fe_recepciones';
             $accion = 2; //ENVIAR_RECEPCION
         } else {
@@ -206,6 +198,23 @@ class Comprobante
             $accion = 1; //ENVIAR_EMISION
         }
         $this->generateFilenames($zip_path, $zip_name, $filename);
+
+        // Buscar a ver si existe el registro
+        $sql = "SELECT COUNT(*) FROM $table
+        WHERE clave='$clave' AND id_empresa={$this->id}";
+        $res = $db->query($sql);
+        if ($res->num_rows) {
+            $hasRecord = $res->fetch_row()[0] > 0;
+            if ($hasRecord) {
+                // Eliminar los registros primero
+                $sql = "DELETE FROM $table
+                WHERE clave='$clave' AND id_empresa={$this->id}";
+                $db->query($sql);
+                $sql = "DELETE FROM fe_cola
+                WHERE clave='$clave' AND id_empresa={$this->id} AND accion=$accion";
+                $db->query($sql);
+            }
+        }
 
         //Guardar el registro
         $sql = "INSERT INTO $table (clave, id_empresa, estado)
@@ -418,7 +427,7 @@ class Comprobante
                 if ($this->tipo == 'R') {
                     $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
                 }
-                
+
                 $post['comprobanteXml'] = base64_encode($this->xml);
 
                 $sql  = "SELECT a.uri_api FROM fe_ambientes a
@@ -430,7 +439,7 @@ class Comprobante
                         'headers' => [
                             'Authorization' => 'bearer ' . $token,
                             'Content-type' => 'application/json'
-                            ]
+                        ]
                     ]
                 );
                 $post = json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -516,7 +525,7 @@ class Comprobante
                 } else {
                     $consecutivo = false;
                 }
-                
+
                 $clave = $this->clave;
 
                 $client = new Client(
@@ -535,7 +544,7 @@ class Comprobante
                     if ($res->getStatusCode() == 200) {
                         $body = $res->getBody();
                         $token = $this->tipo . $this->id_comprobante;
-                        
+
                         $cuerpo = json_decode($body, true);
                         if (isset($cuerpo['respuesta-xml'])) {
                             //llego el xml con el mensaje de respuesta
