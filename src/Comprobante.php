@@ -199,35 +199,6 @@ class Comprobante
         }
         $this->generateFilenames($zip_path, $zip_name, $filename);
 
-        // Buscar a ver si existe el registro
-        $sql = "SELECT COUNT(*) FROM $table
-        WHERE clave='$clave' AND id_empresa={$this->id}";
-        $res = $db->query($sql);
-        if ($res->num_rows) {
-            $hasRecord = $res->fetch_row()[0] > 0;
-            if ($hasRecord) {
-                // Eliminar los registros primero
-                $sql = "DELETE FROM $table
-                WHERE clave='$clave' AND id_empresa={$this->id}";
-                $db->query($sql);
-                $sql = "DELETE FROM fe_cola
-                WHERE clave='$clave' AND id_empresa={$this->id} AND accion=$accion";
-                $db->query($sql);
-            }
-        }
-
-        //Guardar el registro
-        $sql = "INSERT INTO $table (clave, id_empresa, estado)
-        VALUES ('$clave', '{$this->id}', '{$this->estado}')";
-        $db->query($sql);
-        $this->id_comprobante = $db->insert_id;
-
-        //Agregar a la cola
-        $timestamp = (new \DateTime())->getTimestamp();
-        $sql = "INSERT INTO fe_cola (id_empresa, clave, accion, tiempo_creado, tiempo_enviar)
-        VALUES ('{$this->id}', '$clave', $accion, $timestamp, $timestamp)";
-        $db->query($sql);
-
         //Guardar el archivo XML
         $filesystem = $this->container['filesystem'];
         $zip = new \ZipArchive();
@@ -259,6 +230,36 @@ class Comprobante
         } catch (FilesystemException | UnableToWriteFile $exception) {
             throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
         }
+
+        // Buscar a ver si existe el registro
+        $sql = "SELECT COUNT(*) FROM $table
+        WHERE clave='$clave' AND id_empresa={$this->id}";
+        $res = $db->query($sql);
+        if ($res->num_rows) {
+            $hasRecord = $res->fetch_row()[0] > 0;
+            if ($hasRecord) {
+                // Eliminar los registros primero
+                $sql = "DELETE FROM $table
+                WHERE clave='$clave' AND id_empresa={$this->id}";
+                $db->query($sql);
+                $sql = "DELETE FROM fe_cola
+                WHERE clave='$clave' AND id_empresa={$this->id} AND accion=$accion";
+                $db->query($sql);
+            }
+        }
+
+        //Guardar el registro
+        $sql = "INSERT INTO $table (clave, id_empresa, estado)
+        VALUES ('$clave', '{$this->id}', '{$this->estado}')";
+        $db->query($sql);
+        $this->id_comprobante = $db->insert_id;
+
+        //Agregar a la cola
+        $timestamp = (new \DateTime())->getTimestamp();
+        $sql = "INSERT INTO fe_cola (id_empresa, clave, accion, tiempo_creado, tiempo_enviar)
+        VALUES ('{$this->id}', '$clave', $accion, $timestamp, $timestamp)";
+        $db->query($sql);
+
         return true;
     }
 
