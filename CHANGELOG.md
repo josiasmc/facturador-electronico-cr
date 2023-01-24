@@ -6,6 +6,10 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.6] - 2023-01-24
+
+- Permitir instalaciones en PHP 8
+
 ## [3.3.5] - 2022-10-10
 
 - No dar error al intentar guardar una emision mas de una vez
