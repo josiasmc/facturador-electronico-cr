@@ -6,6 +6,10 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.3.7] - 2023-01-24
+
+- Actualizar dependencias
+
 ## [3.3.6] - 2023-01-24
 
 - Permitir instalaciones en PHP 8

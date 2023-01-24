@@ -25,7 +25,7 @@
     "require": {
         "php": "~7.1",
         "defuse/php-encryption": "^2.2",
-        "guzzlehttp/guzzle": "^7.2",
+        "guzzlehttp/guzzle": "^7.4.5",
         "sabre/xml": "^2.1",
         "monolog/monolog": "^1.24",
         "ramsey/uuid": "^4.0",
