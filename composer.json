@@ -17,13 +17,8 @@
             "role": "Developer"
         }
     ],
-    "config": {
-        "platform": {
-            "php": "7.1"
-        }
-    },
     "require": {
-        "php": "~7.1",
+        "php": ">=7.1",
         "defuse/php-encryption": "^2.2",
         "guzzlehttp/guzzle": "^7.4.5",
         "sabre/xml": "^2.1",
