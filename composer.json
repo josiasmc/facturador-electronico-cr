@@ -9,14 +9,21 @@
     ],
     "homepage": "https://github.com/josiasmc/facturador-electronico-cr",
     "license": "MIT",
-    "authors": [{
-        "name": "Josias Martin",
-        "email": "josias@solucionesinduso.com",
-        "homepage": "https://github.com/josiasmc",
-        "role": "Developer"
-    }],
+    "authors": [
+        {
+            "name": "Josias Martin",
+            "email": "josias@solucionesinduso.com",
+            "homepage": "https://github.com/josiasmc",
+            "role": "Developer"
+        }
+    ],
+    "config": {
+        "platform": {
+            "php": "7.1"
+        }
+    },
     "require": {
-        "php": "~7.1 ~8.0",
+        "php": "~7.1",
         "defuse/php-encryption": "^2.2",
         "guzzlehttp/guzzle": "^7.2",
         "sabre/xml": "^2.1",
