@@ -41,6 +41,7 @@ class Comprobante
     protected $xml;   //XML del comprobante
     protected $tipo;  //E para emision, o R para recepcion
     protected $id_comprobante; //id_emision o id_recepcion
+    protected $consecutivo = ''; //Consecutivo del comprobante
     public $enHacienda = null; //Utilizado al consultar estado de comprobante a recepcionar
 
     public const EMISION = 1;   //Comprobante de emision
@@ -96,7 +97,8 @@ class Comprobante
                 $this->tipo = $tipo;
                 $this->id = $id;
             } else {
-                return false;
+                //No existe
+                throw new \Exception('El comprobante no existe');
             }
         } else {
             //-------- Crear un nuevo comprobante --------
@@ -282,6 +284,7 @@ class Comprobante
             $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
         }
         $filename = $tipo_doc . $clave . '.xml';
+        return true;
     }
 
     /**
@@ -338,7 +341,8 @@ class Comprobante
         $idEmpresa = $this->id;
         $rateLimiter = $this->container['rate_limiter'];
         if ($rateLimiter->canPost($idEmpresa)) {
-            //Intentar conseguir un token de acceso
+            // Dentro de limites permitidos
+            // Intentar conseguir un token de acceso
             $token = (new Token($this->container, $idEmpresa))->getToken();
             if ($token) {
                 //Tenemos token, entonces intentamos hacer el envio
@@ -448,6 +452,7 @@ class Comprobante
                     $res = $client->post($uri, ['body' => $post]);
                     $code = $res->getStatusCode();
                     if ($code == 201 || $code == 202) {
+                        // Se envio correctamente
                         $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_202);
                         $sql = "DELETE FROM fe_cola WHERE clave='$clave' AND accion=$accion";
                         $this->container['db']->query($sql);
@@ -457,9 +462,6 @@ class Comprobante
                         $this->container['log']->debug("{$this->tipo}$clave enviado. Respuesta $code");
                         return true;
                     }
-                    // Algun estado desconocido
-                    $this->aplazarEnvio();
-                    return false;
                 } catch (Exception\ClientException $e) {
                     // a 400 level exception occured
                     $res = $e->getResponse();
@@ -478,32 +480,23 @@ class Comprobante
                             "Respuesta $code al enviar {$this->tipo}$clave. Error: $error"
                         );
                     }
-                    $this->aplazarEnvio();
                 } catch (Exception\ServerException $e) {
                     // a 500 level exception occured
                     $code = $e->getResponse()->getStatusCode();
                     $this->container['log']->notice(
                         "Respuesta $code al enviar {$this->tipo}$clave."
                     );
-                    $this->aplazarEnvio();
                 } catch (Exception\ConnectException $e) {
                     // a connection problem
                     $this->container['log']->notice(
                         "Error de conexion al enviar {$this->tipo}$clave."
                     );
-                    $this->aplazarEnvio();
                 }
-                return false;
-            } else {
-                //Fallo en coger token
-                $this->aplazarEnvio();
-                return false;
             }
-        } else {
-            //Limite exedido
-            $this->aplazarEnvio();
-            return false;
         }
+        // No se pudo enviar por alguna razón
+        $this->aplazarEnvio();
+        return false;
     }
 
     /**
@@ -830,7 +823,7 @@ class Comprobante
 
         if ($xml == false) {
             //No enviaron nada, entonces solo daria error
-            return false;
+            return [];
         }
         //Eliminar la firma
         $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);

@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.4.0] - 2024-05-13
+
+- Optimizar envío de cola de documentos pendientes, dando prioridad a documentos que se envían por primera vez
+- Limitar intentos de envíos por sesión cuando hay errores de consulta relacionado a una cédula
+- Introducir límite de tiempo de ejecución en el proceso de enviar documentos pendientes
+
 ## [3.3.7] - 2023-01-24
 
 - Actualizar dependencias

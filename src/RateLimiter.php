@@ -79,17 +79,50 @@ class RateLimiter
      */
     private function getCedula(int $id)
     {
-        //Coger la cedula de la empresa
+        // Coger la cedula de la empresa
         if (isset($this->id_cache[$id])) {
-            $cedula = $this->id_cache[$id];
+            $cedula = $this->id_cache[$id]['cedula'];
         } else {
             $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=$id";
-            $r = $this->db->query($sql)->fetch_row();
-            $aplicar_limite = ($r[1] ?? 1) == 1; //Limites unicamente en staging
-            $cedula = $aplicar_limite ? ($r[0] ?? 0) : 0;
-            $this->id_cache[$id] = $cedula;
+            $row = $this->db->query($sql);
+            if ($row->num_rows == 0) {
+                $this->id_cache[$id] = ['cedula' => 0, 'staging' => false];
+                return 0; //Empresa no existe
+            }
+            $r = $row->fetch_row();
+            $staging = $r[1] == 1; // Ambiente de pruebas
+            $cedula = $r[0];
+            $this->id_cache[$id] = ['cedula' => $cedula, 'staging' => $staging];
         }
         return $cedula;
+    }
+
+    /**
+     * Coger el ambiente que esta usando el ID de empresa
+     *
+     * @param int ID de empresa
+     *
+     * @return bool Si es ambiente de produccion
+     */
+    private function isProd(int $id)
+    {
+        // Coger la cedula de la empresa
+        if (isset($this->id_cache[$id])) {
+            $isProd = $this->id_cache[$id]['staging'] == false;
+        } else {
+            $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=$id";
+            $row = $this->db->query($sql);
+            if ($row->num_rows == 0) {
+                $this->id_cache[$id] = ['cedula' => 0, 'staging' => false];
+                return false; //Empresa no existe
+            }
+            $r = $row->fetch_row();
+            $staging = $r[1] == 1; // Ambiente de pruebas
+            $cedula = $r[0];
+            $this->id_cache[$id] = ['cedula' => $cedula, 'staging' => $staging];
+            $isProd = $staging == false;
+        }
+        return $isProd;
     }
 
     /**
@@ -158,9 +191,15 @@ class RateLimiter
 
         $userLimits = $this->getUserLimits($cedula);
 
-        //Si cualquiera de estos limites llego a 0, devolver false
-        $canPost = $userLimits[RateLimiter::REQUESTS] <= 0 ? false : true;
-        $canPost = $userLimits[RateLimiter::POST_202] <= 0 ? false : $canPost;
+        // Si cualquiera de estos limites llego a 0, devolver false
+        $canPost = true;
+        $isProd = $this->isProd($id);
+        if ($isProd == false) {
+            //En ambiente de pruebas, limitar los envios
+            $canPost = $userLimits[RateLimiter::REQUESTS] <= 0 ? false : $canPost;
+            $canPost = $userLimits[RateLimiter::POST_202] <= 0 ? false : $canPost;
+        }
+        // Esto se aplica en ambos ambientes
         $canPost = $userLimits[RateLimiter::POST_401_403] <= 0 ? false : $canPost;
         $canPost = $userLimits[RateLimiter::POST_40X] <= 0 ? false : $canPost;
         return $canPost;
@@ -183,9 +222,14 @@ class RateLimiter
         $userLimits = $this->getUserLimits($cedula);
 
         //Si cualquiera de estos limites llego a 0, devolver false
-        $canGet = $userLimits[RateLimiter::REQUESTS] <= 0 ? false : true;
-        $canGet = $userLimits[RateLimiter::GET_200] <= 0 ? false : $canGet;
-        $canGet = $userLimits[RateLimiter::GET_40X] <= 0 ? false : $canGet;
+        $canGet = true;
+        $isProd = $this->isProd($id);
+        if ($isProd == false) {
+            // Limites para ambiente de pruebas
+            $canGet = $userLimits[RateLimiter::REQUESTS] <= 0 ? false : true;
+            $canGet = $userLimits[RateLimiter::GET_200] <= 0 ? false : $canGet;
+            $canGet = $userLimits[RateLimiter::GET_40X] <= 0 ? false : $canGet;
+        }
         return $canGet;
     }
 
@@ -202,13 +246,18 @@ class RateLimiter
         if ($cedula === 0) {
             return true; //Contribuyente sin limites
         }
-        
+
         $userLimits = $this->getUserLimits($cedula);
 
         //Si cualquiera de estos limites llego a 0, devolver false
-        $canGetToken = $userLimits[RateLimiter::IDP_200] <= 0 ? false : true;
+        $canGetToken = true;
+        $isProd = $this->isProd($id);
+        if ($isProd == false) {
+            // Limites para ambiente de pruebas
+            $canGetToken = $userLimits[RateLimiter::IDP_200] <= 0 ? false : true;
+            $canGetToken = $userLimits[RateLimiter::IDP_REQUEST] <= 0 ? false : $canGetToken;
+        }
         $canGetToken = $userLimits[RateLimiter::IDP_401_403] <= 0 ? false : $canGetToken;
-        $canGetToken = $userLimits[RateLimiter::IDP_REQUEST] <= 0 ? false : $canGetToken;
         return $canGetToken;
     }
 
@@ -230,7 +279,7 @@ class RateLimiter
         if ($cedula === 0) {
             return true; //Contribuyente sin limites no necesita registros
         }
-        
+
         $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
 
         //Registrar transaccion en la cache
@@ -238,8 +287,14 @@ class RateLimiter
         $this->rate_cache[$cedula]['limits'][RateLimiter::REQUESTS]--;
 
         //Registrar transaccion en la base de datos
-        $sql = "INSERT INTO fe_ratelimiting (cedula, regla, tiempo)
-        VALUES ('$cedula', $type, $timestamp)";
-        return $this->db->query($sql);
+        $isProd = $this->isProd($id);
+        if ($isProd == false) {
+            // Persistir solo en staging
+            $sql = "INSERT INTO fe_ratelimiting (cedula, regla, tiempo)
+            VALUES ('$cedula', $type, $timestamp)";
+            return $this->db->query($sql);
+        } else {
+            return true;
+        }
     }
 }

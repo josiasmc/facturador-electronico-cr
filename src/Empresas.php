@@ -52,7 +52,7 @@ class Empresas
      *
      * @param int $cedula La cedula de la empresa
      *
-     * @return int Id unico de la empresa si existe
+     * @return array[int] | false Id unico de la empresa si existe
      */
     public function buscarPorCedula($cedula)
     {
@@ -101,7 +101,6 @@ class Empresas
             $this->log->error("Error guardando empresa para el cliente $client_id: $db->error");
             throw new \Exception("Error guardando empresa: " . $db->error);
         }
-        return false;
     }
 
     /**
@@ -142,7 +141,7 @@ class Empresas
      * @param int $id Id unico de la empresa.
      *                Si no se provee, devuelve todas las del cliente
      *
-     * @return array Toda la informacion de la empresa, sin la llave criptografica
+     * @return array | false Toda la informacion de la empresa, sin la llave criptografica
      */
     public function get($id = '')
     {
@@ -185,7 +184,7 @@ class Empresas
      *
      * @param int $id El id unico de la empresa
      *
-     * @return array El certificado con el pin
+     * @return array | false El certificado con el pin
      */
     public function getCert($id)
     {
@@ -249,9 +248,9 @@ class Empresas
     /**
      * Quote non integer strings with ''
      *
-     * @param String $value Text needing quotes
+     * @param string $value Text needing quotes
      *
-     * @return String
+     * @return string
      */
     private function prepValue($value)
     {

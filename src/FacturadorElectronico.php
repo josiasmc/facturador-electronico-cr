@@ -40,7 +40,7 @@ use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
 class FacturadorElectronico
 {
     protected $container;
-    
+
     /**
      * Invoicer constructor
      *
@@ -55,7 +55,8 @@ class FacturadorElectronico
             'client_id' => 0,         // ID de empresa
             'storage_path' => '',     // Ruta para guardar los comprobantes
             'callback_url' => '',     // URL para Hacienda enviar las respuestas
-            'storage_type' => 'local' // Lugar en que se guardan los comprobantes. 'local' | 's3'
+            'storage_type' => 'local', // Lugar en que se guardan los comprobantes. 'local' | 's3',
+            's3_client_options' => [], // Opciones para el cliente de S3
         ], $settings);
 
         $crypto_key = $container['crypto_key'];
@@ -73,7 +74,7 @@ class FacturadorElectronico
         if ($container['storage_type'] == 'local') {
             $storage_path = $container['storage_path'];
             if ($storage_path == '') {
-                throw new \Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+                throw new Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
             }
             $adapter = new LocalFilesystemAdapter($container['storage_path']);
         } elseif ($container['storage_type'] == 's3') {
@@ -176,7 +177,7 @@ class FacturadorElectronico
      *
      * @param int $id ID unico de la empresa
      *
-     * @return file La llave criptografica de la empresa
+     * @return array La llave criptografica de la empresa
      */
     public function cogerLlaveCriptograficaEmpresa($id)
     {
@@ -225,7 +226,7 @@ class FacturadorElectronico
                 $token = $_REQUEST['token'];
             } else {
                 $log->error("Error al procesar callback de Hacienda para la clave $clave. No hay token de identificacion.");
-                throw new \Exception("No existe token para procesar el mensaje de Hacienda para la clave $clave");
+                throw new Exception("No existe token para procesar el mensaje de Hacienda para la clave $clave");
             }
         }
         $db = $this->container['db'];
@@ -260,7 +261,7 @@ class FacturadorElectronico
 
         if (!$valido) {
             $log->error("Error al procesar callback de Hacienda para la clave $tipo$clave. Token invalido.");
-            throw new \Exception("Token invalido al procesar callback de Hacienda para la clave $tipo$clave");
+            throw new Exception("Token invalido al procesar callback de Hacienda para la clave $tipo$clave");
         }
 
         $datos = [
@@ -295,7 +296,7 @@ class FacturadorElectronico
      * Recibir xml de un proveedor
      *
      * @param string $xml        XML que se esta recibiendo
-     * @param int    $datos      Datos del comprobante de recepcion
+     * @param array  $datos      Datos del comprobante de recepcion
      * @param string $id_empresa ID de la empresa receptora
      *
      * @return int|bool El estado
@@ -311,7 +312,7 @@ class FacturadorElectronico
             $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
             $filename = $tipo_doc . $clave . '.xml';
             $zip_name = 'R' . $clave . '.zip';
-    
+
             $zip = new \ZipArchive();
             $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
             if ($filesystem->fileExists($path . $zip_name)) {
@@ -320,15 +321,15 @@ class FacturadorElectronico
                     $contents = $filesystem->read($path . $zip_name);
                     file_put_contents($tmpfile, $contents);
                 } catch (FilesystemException | UnableToReadFile $exception) {
-                    throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                    throw new Exception("No se pudo abrir el archivo zip para el documento $filename.");
                 }
                 if ($zip->open($tmpfile) !== true) {
-                    throw new \Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
+                    throw new Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
                 }
             } else {
                 //Creamos uno nuevo
                 if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
-                    throw new \Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
+                    throw new Exception("Fallo al crear un archivo temporal para <{$zip_name}>\n");
                 }
             }
             $zip->addFromString($filename, $xml);
@@ -338,7 +339,7 @@ class FacturadorElectronico
             try {
                 $filesystem->write($path . $zip_name, $contents);
             } catch (FilesystemException | UnableToWriteFile $exception) {
-                throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
+                throw new Exception("Fallo al guardar el archivo <$zip_name>\n");
             }
         }
 
@@ -375,7 +376,7 @@ class FacturadorElectronico
         }
 
         if ($error) {
-            throw new \Exception($error);
+            throw new Exception($error);
         }
 
         //Crear el comprobante de recepcion
@@ -400,7 +401,7 @@ class FacturadorElectronico
         ];
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
         $estado = $comprobante->estado;
-        
+
         if ($estado > 2) {
             //ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
@@ -464,7 +465,7 @@ class FacturadorElectronico
                     return false;
                 }
             }
-            
+
             //Conseguir el archivo
             $storage_path = "$id/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
 
@@ -485,12 +486,12 @@ class FacturadorElectronico
                 $contents = $filesystem->read($storage_path . $zip_name);
                 file_put_contents($tmpfile, $contents);
             } catch (FilesystemException | UnableToReadFile $exception) {
-                throw new \Exception("No se pudo leer el archivo <{$zip_name}>");
+                throw new Exception("No se pudo leer el archivo <{$zip_name}>");
             }
-            
+
             $zip = new \ZipArchive();
             if ($zip->open($tmpfile) !== true) {
-                throw new \Exception("Fallo al abrir <{$zip_name}> abriendo xml\n");
+                throw new Exception("Fallo al abrir <{$zip_name}> abriendo xml\n");
             }
 
             if ($zip->locateName($filename) !== false) {
@@ -540,17 +541,22 @@ class FacturadorElectronico
      * Enviar los comprobantes en la cola de envio
      * y devolver una lista de los comprobantes enviados
      *
+     * @param int $timeout Maximo tiempo en segundos para enviar comprobantes
+     *
      * @return array [[clave => clave, tipo => E o R], [...]] con todos los que se enviaron
      */
-    public function enviarCola()
+    public function enviarCola($timeout = 0)
     {
         $db = $this->container['db'];
         $log = $this->container['log'];
         $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
-        $sql = "SELECT * FROM fe_cola
-        WHERE tiempo_enviar <= $timestamp AND accion < 3 AND intentos_envio < 12";
-        $res = $db->query($sql);
         $enviados = [];
+
+        // Prioridad de envio para los documentos mas recientes
+        $sql = "SELECT * FROM fe_cola
+        WHERE tiempo_enviar <= $timestamp AND accion < 3 AND intentos_envio < 12
+        ORDER BY intentos_envio ASC, tiempo_enviar ASC";
+        $res = $db->query($sql);
         while ($row = $res->fetch_assoc()) {
             $clave = $row['clave'];
             $accion = $row['accion'];
@@ -560,47 +566,37 @@ class FacturadorElectronico
             ];
             $comprobante = new Comprobante($this->container, $datos, $row['id_empresa']);
             if ($row['intentos_envio'] > 0) {
-                //Primero consultar estado
+                // Primero consultar estado
                 if ($comprobante->consultarEstado()) {
-                    //Se logro consultar estado
+                    // Se logro consultar estado, entonces ya está en Hacienda
                     $enviados[] = [
                         'clave' => $clave,
                         'tipo' => $accion == 1 ? 'E' : 'R',
                         'estado' => $comprobante->estado
                     ];
-                    //Eliminarlo de la cola
+                    // Eliminarlo de la cola
                     $sql = "DELETE FROM fe_cola WHERE clave='$clave' AND accion='$accion'";
                     $db->query($sql);
-                } else {
-                    //volver a enviarlo
-                    try {
-                        if ($comprobante->enviar()) {
-                            $enviados[] = [
-                                'clave' => $clave,
-                                'tipo' => $accion == 1 ? 'E' : 'R',
-                                'estado' => 2
-                            ];
-                        }
-                    } catch (Exception $e) {
-                        // Error al enviarlo
-                        $log->error("Error devuelto al intentar reenviar comprobante: $e");
-                        $comprobante->desactivarEnvios();
-                    }
+                    continue;
                 }
-            } else {
-                try {
-                    if ($comprobante->enviar()) {
-                        $enviados[] = [
-                            'clave' => $clave,
-                            'tipo' => $accion == 1 ? 'E' : 'R',
-                            'estado' => 2
-                        ];
-                    }
-                } catch (Exception $e) {
-                    // Error al enviarlo
-                    $log->error("Error devuelto al intentar enviar comprobante: $e");
-                    $comprobante->desactivarEnvios();
+            }
+            try {
+                if ($comprobante->enviar()) {
+                    $enviados[] = [
+                        'clave' => $clave,
+                        'tipo' => $accion == 1 ? 'E' : 'R',
+                        'estado' => 2
+                    ];
                 }
+            } catch (Exception $e) {
+                // Error al enviarlo
+                $log->error("Error devuelto al intentar enviar comprobante: $e");
+                $comprobante->desactivarEnvios();
+            }
+
+            // Ver si hemos pasado el tiempo limite
+            if ($timeout > 0 && (new \DateTime())->getTimestamp() - $timestamp > $timeout) {
+                break;
             }
         }
         return $enviados;
