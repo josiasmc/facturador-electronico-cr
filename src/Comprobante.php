@@ -338,10 +338,13 @@ class Comprobante
             $this->cargarDatosXml();
         }
         $datos = $this->datos;
-        $idEmpresa = $this->id;
-        $rateLimiter = $this->container['rate_limiter'];
-        if ($rateLimiter->canPost($idEmpresa)) {
-            // Dentro de limites permitidos
+        if ($datos) {
+            $idEmpresa = $this->id;
+            $rateLimiter = $this->container['rate_limiter'];
+            if (!$rateLimiter->canPost($idEmpresa)) {
+                // Limite exedido para esta cedula
+                return false;
+            }
             // Intentar conseguir un token de acceso
             $token = (new Token($this->container, $idEmpresa))->getToken();
             if ($token) {
@@ -493,7 +496,13 @@ class Comprobante
                     );
                 }
             }
+        } else {
+            // No se pudo conseguir los datos del xml
+            $this->container['log']->notice(
+                "No se pudieron conseguir los datos del xml al enviar {$this->tipo}$clave."
+            );
         }
+
         // No se pudo enviar por alguna razón
         $this->aplazarEnvio();
         return false;
@@ -689,7 +698,7 @@ class Comprobante
     {
         $clave = $this->clave;
         $accion_actual = $this->tipo == 'E' ? 1 : 2;
-        $sql = "UPDATE fe_cola SET accion=3
+        $sql = "UPDATE fe_cola SET accion=accion + 2
         WHERE clave='$clave' AND accion=$accion_actual";
         $this->container['db']->query($sql);
     }
@@ -701,30 +710,31 @@ class Comprobante
      */
     private function aplazarEnvio()
     {
-        //Coger intentos actuales
+        // Coger intentos actuales
         $clave = $this->clave;
         $accion = $this->tipo == 'E' ? 1 : 2;
         $sql = "SELECT intentos_envio FROM fe_cola WHERE clave='$clave' AND accion=$accion";
-        $intentos = $this->container['db']->query($sql)->fetch_row()[0] ?? 0;
-        $plazo = 28800; //por defecto 8 hrs
+        $result = $this->container['db']->query($sql);
+        if ($result->num_rows == 0) {
+            return;
+        }
+        $intentos = $result->fetch_row()[0];
+        $plazo = 28800; // por defecto 8 hrs
         $plazos = [
-            300,   //5min
-            900,   //15min
-            2400,  //40min
-            3600,  //1hr
-            7200,  //2hrs
-            14400  //4hrs
+            300,   // 5min
+            900,   // 15min
+            2400,  // 40min
+            3600,  // 1hr
+            7200,  // 2hrs
+            14400  // 4hrs
         ];
         if (isset($plazos[$intentos])) {
             $plazo = $plazos[$intentos];
         }
         $siguiente = (new \DateTime())->getTimestamp() + $plazo;
         $intentos++;
-        if ($intentos >= 12) {
-            // Desactivar envios
-            $accion = 3;
-        }
-        $sql = "UPDATE fe_cola SET tiempo_enviar=$siguiente, intentos_envio=$intentos
+        $accion_nueva = $intentos >= 12 ? $accion + 2 : $accion; // Despues de 12 intentos se desactiva
+        $sql = "UPDATE fe_cola SET tiempo_enviar=$siguiente, intentos_envio=$intentos, accion=$accion_nueva
         WHERE clave='$clave' AND accion=$accion";
         $this->container['db']->query($sql);
     }

@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.4.1] - 2024-05-13
+
+- Arreglar error donde aplazar envíos de un documento que había llegado al límite
+de intentos de reenvío no se le desactivaban los envíos.
+- Aplazar envío si no se halla la información del xml a la hora de enviar
+
 ## [3.4.0] - 2024-05-13
 
 - Optimizar envío de cola de documentos pendientes, dando prioridad a documentos que se envían por primera vez
