@@ -245,11 +245,6 @@ class Comprobante
             throw new \Exception("Fallo al guardar el archivo <$zip_name>\n");
         }
 
-        //Consultar al sistema de archivos si se guardo correctamente
-        if (!$this->cargarDatosXml()) {
-            throw new \Exception("El XML no se guardó correctamente.\n");
-        }
-
         // Buscar a ver si existe el registro
         $sql = "SELECT COUNT(*) FROM $table
         WHERE clave='$clave' AND id_empresa={$this->id}";
