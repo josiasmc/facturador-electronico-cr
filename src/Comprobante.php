@@ -219,7 +219,7 @@ class Comprobante
         } else {
             //Creamos uno nuevo
             if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
-                throw new \Exception("Fallo al abrir <$zip_name>\n");
+                throw new \Exception("Fallo al crear <$zip_name>\n");
             }
         }
         $zip->addFromString($filename, $this->xml);
@@ -338,6 +338,7 @@ class Comprobante
             $this->cargarDatosXml();
         }
         $datos = $this->datos;
+        $clave = $datos['Clave'];
         if ($datos) {
             $idEmpresa = $this->id;
             $rateLimiter = $this->container['rate_limiter'];
@@ -351,7 +352,6 @@ class Comprobante
                 //Tenemos token, entonces intentamos hacer el envio
                 if ($this->tipo == 'E') {
                     //Cogemos datos para una factura
-                    $clave = $datos['Clave'];
                     $accion = 1; //enviar emision
                     $table = 'fe_emisiones';
                     $post = [

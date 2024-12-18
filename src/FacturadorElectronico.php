@@ -402,30 +402,28 @@ class FacturadorElectronico
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
         $estado = $comprobante->estado;
 
+        $xml = '';
         if ($estado > 2) {
-            //ya tenemos la respuesta de Hacienda en la base de datos
+            // ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
         } elseif ($estado == 2) {
-            //comprobante esta enviado
+            // comprobante esta enviado
             $comprobante->consultarEstado();
             $estado = $comprobante->estado;
             if ($estado > 2) {
                 $xml = $comprobante->cogerXmlRespuesta();
-            } else {
-                $xml = '';
             }
         } elseif ($estado == 1) {
-            // ni siquiera se ha enviado
+            // no se ha enviado
             $comprobante->enviar();
             $estado = $comprobante->estado;
-            $xml = '';
         }
-        $estado = array('pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado')[$estado];
+        $estado = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado'][$estado];
         return [
             'clave' => $clave,
             'estado' => $estado,
             'mensaje' => $comprobante->cogerDetalleMensaje(),
-            'xml' => $xml //xml de confirmacion de Hacienda
+            'xml' => $xml //xml de respuesta de Hacienda
         ];
     }
 
@@ -467,7 +465,7 @@ class FacturadorElectronico
             }
 
             //Conseguir el archivo
-            $storage_path = "$id/20" . \substr($clave, 7, 2) . \substr($clave, 5, 2) . '/';
+            $storage_path = "$id/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
 
             $zip_name = $lugar . $clave . '.zip';
             if ($tipo == 2) {
@@ -590,7 +588,7 @@ class FacturadorElectronico
                 }
             } catch (Exception $e) {
                 // Error al enviarlo
-                $log->error("Error devuelto al intentar enviar comprobante: $e");
+                $log->error("Error al intentar enviar comprobante: $e");
                 $comprobante->desactivarEnvios();
             }
 
