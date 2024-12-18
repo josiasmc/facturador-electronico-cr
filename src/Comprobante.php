@@ -209,10 +209,14 @@ class Comprobante
             //Abrimos el existente y le añadimos los archivos
             try {
                 $contents = $filesystem->read($zip_path . $zip_name);
-                file_put_contents($tmpfile, $contents);
             } catch (FilesystemException | UnableToReadFile $exception) {
-                throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                throw new \Exception("No se pudo abrir el archivo zip para el documento $filename.\n");
             }
+
+            if (file_put_contents($tmpfile, $contents) === false) {
+                throw new \Exception("Fallo al guardar el archivo temporal\n");
+            }
+
             if ($zip->open($tmpfile) !== true) {
                 throw new \Exception("Fallo al abrir <$zip_name> guardando MR\n");
             }
@@ -226,6 +230,14 @@ class Comprobante
         $zip->close();
 
         $contents = file_get_contents($tmpfile);
+        if ($contents === false) {
+            throw new \Exception("Fallo al leer el archivo temporal\n");
+        }
+
+        if (strlen($contents) == 0) {
+            throw new \Exception("El archivo XML esta vacio\n");
+        }
+
         unlink($tmpfile);
         try {
             $filesystem->write($zip_path . $zip_name, $contents);
