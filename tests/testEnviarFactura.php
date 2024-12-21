@@ -1,6 +1,5 @@
 <?php
 
-
 use Contica\eFacturacion\Facturador;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -88,11 +87,9 @@ $datos = [
 ];
 
 try {
-    
     $cl = $invoicer->enviarComprobante($datos);
     echo "Clave generada: $cl";
-
-} catch (\GuzzleHttp\Exception\ClientException $err)  {
+} catch (\GuzzleHttp\Exception\ClientException $err) {
     $file = fopen(__DIR__ . "/error.html", "w");
     fwrite($file, $err);
     fclose($file);

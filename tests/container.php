@@ -1,5 +1,7 @@
 <?php
-use \Defuse\Crypto\Key;
+
+use Defuse\Crypto\Key;
+
 require "configs.php";
 $config = [
     'dominio' => 'localhost',
@@ -15,9 +17,9 @@ $config = [
     )
 ];
 $db = new \mysqli(
-    $config['dominio'], 
-    $config['usuario'], 
-    $config['contraseña'], 
+    $config['dominio'],
+    $config['usuario'],
+    $config['contraseña'],
     $config['base_datos']
 );
 $container = [

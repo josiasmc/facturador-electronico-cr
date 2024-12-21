@@ -69,7 +69,7 @@ class Token
     /**
      * Funcion para retornar un token
      *
-     * @return String Access token, o false si hay un fallo
+     * @return string Access token, o false si hay un fallo
      */
     public function getToken()
     {
@@ -144,10 +144,9 @@ class Token
                 //handles all exceptions
                 return false;
             }
-        } else {
-            //No se pudo conseguir la informacion de conexion de la empresa
-            return false;
         }
+        //No se pudo conseguir la informacion de conexion de la empresa
+        return false;
     }
 
     /**
@@ -244,7 +243,7 @@ class Token
     /**
      * Funcion para recoger los datos necesarios para conectarse con Hacienda
      *
-     * @return array Array con los datos para hacer las peticiones
+     * @return array|false Array con los datos para hacer las peticiones
      */
     private function getAccessDetails()
     {
@@ -272,9 +271,9 @@ class Token
     /**
      * Funcion para revisar la vida de un token
      *
-     * @param String $expires La fecha que se tiene que revisar
+     * @param string $expires La fecha que se tiene que revisar
      *
-     * @return Boolean True si es valido
+     * @return bool True si es valido
      */
     private function validToken($expires)
     {

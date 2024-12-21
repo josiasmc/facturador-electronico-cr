@@ -2,12 +2,11 @@
 
 namespace Contica\eFacturacion;
 
-use \Defuse\Crypto\Crypto;
-use  \PHPUnit\Framework\TestCase;
+use Defuse\Crypto\Crypto;
+use  PHPUnit\Framework\TestCase;
 
 class CompaniesTest extends TestCase
 {
-
     public function testCompanyExists()
     {
         $container = include 'container.php';

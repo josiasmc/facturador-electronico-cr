@@ -49,7 +49,7 @@ class XmlWriter extends \Sabre\Xml\Writer
         }
     }
 
-    
+
     /**
      * Esta funcion serializa el array a los nodos del xml
      *
@@ -70,7 +70,7 @@ class XmlWriter extends \Sabre\Xml\Writer
             $name = $value['name'];
             $attributes = isset($value['attributes']) ? $value['attributes'] : [];
             $value = isset($value['value']) ? $value['value'] : null;
-    
+
             $this->startElement($name);
             $this->writeAttributes($attributes);
             $this->write($value);
@@ -89,7 +89,7 @@ class XmlWriter extends \Sabre\Xml\Writer
                     $name = $item['name'];
                     $attributes = isset($item['attributes']) ? $item['attributes'] : [];
                     $item = isset($item['value']) ? $item['value'] : null;
-            
+
                     $this->startElement($name);
                     $this->writeAttributes($attributes);
                     $this->write($item);
@@ -132,7 +132,7 @@ class XmlWriter extends \Sabre\Xml\Writer
             $name = $value['name'];
             $attributes = isset($value['attributes']) ? $value['attributes'] : [];
             $value = isset($value['value']) ? $value['value'] : null;
-    
+
             $this->startElement($name);
             $this->writeAttributes($attributes);
             $this->write($value);
@@ -151,7 +151,7 @@ class XmlWriter extends \Sabre\Xml\Writer
                     $name = $item['name'];
                     $attributes = isset($item['attributes']) ? $item['attributes'] : [];
                     $item = isset($item['value']) ? $item['value'] : null;
-            
+
                     $this->startElement($name);
                     $this->writeAttributes($attributes);
                     $this->write($item);

@@ -2,8 +2,8 @@
 
 namespace Contica\eFacturacion;
 
-use \Defuse\Crypto\Key;
-use  \PHPUnit\Framework\TestCase;
+use Defuse\Crypto\Key;
+use  PHPUnit\Framework\TestCase;
 
 require 'configs.php';
 class InvoicerTest extends TestCase
@@ -28,9 +28,9 @@ class InvoicerTest extends TestCase
             )
         ];
         $db = new \mysqli(
-            $config['servidor'], 
-            $config['usuario'], 
-            $config['contraseña'], 
+            $config['servidor'],
+            $config['usuario'],
+            $config['contraseña'],
             $config['base_datos']
         );
         $container = [
@@ -43,7 +43,7 @@ class InvoicerTest extends TestCase
     /**
      * Test that the function works to add and modify a company
      */
-    
+
     public function testSetCompany()
     {
         $invoicer = new Facturador(['password' => 'localhost']);
@@ -59,6 +59,5 @@ class InvoicerTest extends TestCase
         ];
         fclose($cert);
         $this->assertTrue($invoicer->guardarEmpresa(901230456, $company));
-
     }
 }

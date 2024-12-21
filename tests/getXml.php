@@ -1,6 +1,5 @@
 <?php
 
-
 use Contica\eFacturacion\Facturador;
 
 require __DIR__ . '/../vendor/autoload.php';

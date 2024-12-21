@@ -92,7 +92,7 @@ class XmlReader extends \Sabre\Xml\Reader
             $reader->next();
             return '';
         }
-        
+
         $reader->read();
         $values = [];
         $text = null;

@@ -29,18 +29,6 @@ namespace Contica\Facturacion;
 class Storage
 {
     /**
-     * [Deprecated] Automatic migrations to the database
-     *
-     * @param \mysqli $db The database connection
-     *
-     * @return int Current database version
-     */
-    public static function run_migrations($db)
-    {
-        Storage::runMigrations($db);
-    }
-    
-    /**
      * Automatic migrations to the database
      *
      * @param \mysqli $db The database connection

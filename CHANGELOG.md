@@ -6,6 +6,25 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.5.0] - 2024-12-19
+
+### Added
+- Más validaciones agregadas al manejo de archivos temporales.
+
+### Fixed
+- Algunas más validaciones para manejar errores en algunos casos adicionales.
+- Limpieza de código general.
+- Actualización de dependencias.
+
+### Removed
+
+- La función `Storage::run_migrations()` para actualizar la base de datos
+fue eliminada. Use `Storage::runMigrations() en su lugar`.
+
+## [3.4.2] - 2024-12-16
+
+- Agregar algunas validaciones al manejo de archivos temporales, usados al guardar xmls al archivo zip.
+
 ## [3.4.1] - 2024-05-13
 
 - Arreglar error donde aplazar envíos de un documento que había llegado al límite

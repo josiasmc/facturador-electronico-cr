@@ -1,6 +1,5 @@
 <?php
 
-
 use Contica\eFacturacion\CreadorXML;
 
 require __DIR__ . '/../vendor/autoload.php';

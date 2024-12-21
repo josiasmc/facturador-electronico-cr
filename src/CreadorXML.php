@@ -219,16 +219,16 @@ class CreadorXML
         $signTime = date('c');
 
         //---------------Crear los objetos a firmar----------------------
-        
+
         //----------------------Objeto KeyInfo---------------------------
         $KeyInfo = [
-            $ds . 'X509Data' => [
-                $ds . 'X509Certificate' => $this->cleanKey($this->publicKey)
+            "{$ds}X509Data" => [
+                "{$ds}X509Certificate" => $this->cleanKey($this->publicKey)
             ],
-            $ds . 'KeyValue' => [
-                $ds . 'RSAKeyValue' => [
-                    $ds . 'Modulus' => $this->modulus,
-                    $ds . 'Exponent' => $this->exponent
+            "{$ds}KeyValue" => [
+                "{$ds}RSAKeyValue" => [
+                    "{$ds}Modulus" => $this->modulus,
+                    "{$ds}Exponent" => $this->exponent
                 ]
             ]
         ];
@@ -236,7 +236,7 @@ class CreadorXML
         //----------------Prepare the KeyInfo Digest---------------------
         $xml_KeyInfo = $xmlService->writeFragment(
             [
-                'name' => $ds . 'KeyInfo',
+                'name' => "{$ds}KeyInfo",
                 'attributes' => [
                     'Id' => $KeyInfoId
                 ]
@@ -254,61 +254,61 @@ class CreadorXML
 
         //-------SignedProperties node--------
         $SignedProperties = [
-            $xades . 'SignedSignatureProperties' => [
-                $xades . 'SigningTime' => $signTime,
-                $xades . 'SigningCertificate' => [
-                    $xades . 'Cert' => [
-                        $xades . 'CertDigest' => [
+            "{$xades}SignedSignatureProperties" => [
+                "{$xades}SigningTime" => $signTime,
+                "{$xades}SigningCertificate" => [
+                    "{$xades}Cert" => [
+                        "{$xades}CertDigest" => [
                             [
                                 'name' => $ds . 'DigestMethod',
                                 'attributes' => [
                                     'Algorithm' => $sha256alg
                                 ]
                             ],
-                            $ds . 'DigestValue' => $certDigest//certDigest
+                            "{$ds}DigestValue" => $certDigest//certDigest
                         ],
-                        $xades . 'IssuerSerial' => [
-                            $ds . 'X509IssuerName' => $certIssuer,//certIssuer
-                            $ds . 'X509SerialNumber' => $certData['serialNumber']//certSN
+                        "{$xades}IssuerSerial" => [
+                            "{$ds}X509IssuerName" => $certIssuer,//certIssuer
+                            "{$ds}X509SerialNumber" => $certData['serialNumber']//certSN
                         ]
                     ]
                 ],
-                $xades . 'SignaturePolicyIdentifier' => [
-                    $xades . 'SignaturePolicyId' => [
-                        $xades . 'SigPolicyId' => [
-                            $xades . 'Identifier' => $sigPolicyId,//sigPolicyId
+                "{$xades}SignaturePolicyIdentifier" => [
+                    "{$xades}SignaturePolicyId" => [
+                        "{$xades}SigPolicyId" => [
+                            "{$xades}Identifier" => $sigPolicyId,//sigPolicyId
                             [
-                                'name' => $xades . 'Description',
+                                'name' => "{$xades}Description",
                                 'attributes' => []
                             ]
                         ],
-                        $xades . 'SigPolicyHash' => [
+                        "{$xades}SigPolicyHash" => [
                             [
-                                'name' => $ds . 'DigestMethod',
+                                'name' => "{$ds}DigestMethod",
                                 'attributes' => [
                                     'Algorithm' => $sha256alg]],
-                            $ds . 'DigestValue' => $sigPolicyHash//sigPolicyHash
+                            "{$ds}DigestValue" => $sigPolicyHash//sigPolicyHash
                         ]
                     ]
                 ],
             ],
-            $xades . 'SignedDataObjectProperties' => [
+            "{$xades}SignedDataObjectProperties" => [
                 [
-                    'name' => $xades . 'DataObjectFormat',
+                    'name' => "{$xades}DataObjectFormat",
                     'attributes' => [
-                        'ObjectReference' => '#' . $Reference0Id
+                        'ObjectReference' => "#$Reference0Id"
                     ],
                     'value' => [
-                        $xades . 'MimeType' => 'text/xml',
-                        $xades . 'Encoding' => 'UTF-8'
+                        "{$xades}MimeType" => 'text/xml',
+                        "{$xades}Encoding" => 'UTF-8'
                     ]
                 ]
             ]
-            
+
         ];
         $xml_SignedProperties = $xmlService->writeFragment(
             [
-                'name' => $xades . 'SignedProperties',
+                'name' => "{$xades}SignedProperties",
                 'attributes' => [
                     'Id' => $SignedPropertiesId,
                 ]
@@ -326,79 +326,79 @@ class CreadorXML
 
         $SignedInfo = [
             [
-            'name' => $ds . 'CanonicalizationMethod',
+            'name' => "{$ds}CanonicalizationMethod",
             'attributes' => [
                 'Algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
                 ]
             ],
             [
-            'name' => $ds . 'SignatureMethod',
+            'name' => "{$ds}SignatureMethod",
             'attributes' => [
                 'Algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
                 ]
             ],
             // Reference for the XML document
             [
-                'name' => $ds . 'Reference',
+                'name' => "{$ds}Reference",
                 'attributes' => [
                     'Id' => $Reference0Id,
                     'URI' => ''
                 ],
                 'value' => [
-                    $ds . 'Transforms' => [
-                        'name' => $ds . 'Transform',
+                    "{$ds}Transforms" => [
+                        'name' => "{$ds}Transform",
                         'attributes' => [
                             'Algorithm' =>
                             'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
                         ]
                     ],
                     [
-                        'name' => $ds . 'DigestMethod',
+                        'name' => "{$ds}DigestMethod",
                         'attributes' => [
                             'Algorithm' => $sha256alg
                         ]
                     ],
-                    $ds . 'DigestValue' => $docDigest
+                    "{$ds}DigestValue" => $docDigest
                 ]
             ],
             // Reference for KeyInfo object
             [
-                'name' => $ds . 'Reference',
+                'name' => "{$ds}Reference",
                 'attributes' => [
                     'Id' => $Reference1Id,
-                    'URI' => '#' . $KeyInfoId
+                    'URI' => "#$KeyInfoId"
                 ],
                 'value' => [
                     [
-                        'name' => $ds . 'DigestMethod',
+                        'name' => "{$ds}DigestMethod",
                         'attributes' => [
                             'Algorithm' => $sha256alg
                         ]
                     ],
-                    $ds . 'DigestValue' => $keyDigest
+                    "{$ds}DigestValue" => $keyDigest
                 ]
             ],
             // Reference for SignedProperties object
             [
-                'name' => $ds . 'Reference',
+                'name' => "{$ds}Reference",
                 'attributes' => [
                     'Type' => 'http://uri.etsi.org/01903#SignedProperties',
                     'URI' => "#$SignedPropertiesId"
                 ],
                 'value' => [
                     [
-                        'name' => $ds . 'DigestMethod',
+                        'name' => "{$ds}DigestMethod",
                         'attributes' => [
                             'Algorithm' => $sha256alg
                         ]
                     ],
-                    $ds . 'DigestValue' => $propDigest
+                    "{$ds}DigestValue" => $propDigest
                 ]
             ]
         ];
         // El elemento SignedInfo es el que se firma criptograficamente
         $xml_SignedInfo = $xmlService->writeFragment(
-            $ds . 'SignedInfo',
+            "{$ds}SignedInfo",
             $SignedInfo
         );
         $xml_SignedInfo = preg_replace('/>\s+</', '><', $xml_SignedInfo); // COMPRIMIR
@@ -422,48 +422,48 @@ class CreadorXML
         );
 
         $SignatureValue = base64_encode($signatureResult);//Signature value
-        
+
         $Object = [
             [
-                'name' => $xades . 'QualifyingProperties',
+                'name' => "{$xades}QualifyingProperties",
                 'attributes' => [
                     'Id' => $QualifyingProps,
                     'Target' => "#$signatureID"
                 ],
                 'value' => [
-                    'name' => $xades . 'SignedProperties',
+                    'name' => "{$xades}SignedProperties",
                     'value' => ''
                 ]
             ]
         ];
         $firma = [
             [
-                'name' => $ds . 'SignedInfo',
+                'name' => "{$ds}SignedInfo",
                 'value' => ''
             ],
             [
-                'name' => $ds . 'SignatureValue',
+                'name' => "{$ds}SignatureValue",
                 'attributes' => [
                     'Id' => $signatureValueId
                 ],
                 'value' => $SignatureValue
             ],
             [
-                'name' => $ds . 'KeyInfo',
+                'name' => "{$ds}KeyInfo",
                 'value' => ''
             ],
             [
-                'name' => $ds . 'Object',
+                'name' => "{$ds}Object",
                 'attributes' => [
                     'Id' => $XadesObjectId
                 ],
                 'value' => $Object
             ]
         ];
-        
+
         $xml_firma =  $xmlService->writeSignature(
             [
-                'name' => $ds . 'Signature',
+                'name' => "{$ds}Signature",
                 'attributes' => [
                     'Id' => $signatureID
                 ],
