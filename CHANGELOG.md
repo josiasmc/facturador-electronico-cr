@@ -6,6 +6,16 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.5.2] - 2024-12-21
+
+### Fixed
+- Arreglar algunas declaraciones de funciones
+
+## [3.5.1] - 2024-12-21
+
+### Fixed
+- Devolver algunas dependencias para que funcione en PHP 7.4
+
 ## [3.5.0] - 2024-12-19
 
 ### Added

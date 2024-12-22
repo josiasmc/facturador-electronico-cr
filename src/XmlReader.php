@@ -28,7 +28,7 @@ use Sabre\Xml\Reader;
  * @version  Release: <package-version>
  * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
-class XmlReader extends \Sabre\Xml\Reader
+class XmlReader extends Reader
 {
     /**
      * Lector para nodos que aparecen en fila
@@ -36,7 +36,7 @@ class XmlReader extends \Sabre\Xml\Reader
      * @param Reader $reader    The deserializer reader
      * @param string $namespace Root namespace
      *
-     * @return object
+     * @return array
      */
     public static function repeatKeyValue(Reader $reader, string $namespace)
     {
@@ -50,7 +50,7 @@ class XmlReader extends \Sabre\Xml\Reader
 
         $reader->read();
         do {
-            if ($reader->nodeType === Reader::ELEMENT) {
+            if ($reader->nodeType === \XMLReader::ELEMENT) {
                 if ($namespace !== null && $reader->namespaceURI === $namespace) {
                     $localName = $reader->localName;
                     $value = $reader->parseCurrentElement()['value'];
@@ -58,7 +58,7 @@ class XmlReader extends \Sabre\Xml\Reader
                         if (is_array($values[$localName]) && array_key_exists(0, $values[$localName])) {
                             $values[$localName][] = $value;
                         } else {
-                            $values[$localName] = array($values[$localName], $value);
+                            $values[$localName] = [$values[$localName], $value];
                         }
                     } else {
                         $values[$localName] = $value;
@@ -70,7 +70,7 @@ class XmlReader extends \Sabre\Xml\Reader
             } else {
                 $reader->read();
             }
-        } while ($reader->nodeType !== Reader::END_ELEMENT);
+        } while ($reader->nodeType !== \XMLReader::END_ELEMENT);
 
         $reader->read();
 
@@ -99,18 +99,18 @@ class XmlReader extends \Sabre\Xml\Reader
 
         do {
             $type = $reader->nodeType;
-            if ($type === Reader::TEXT || $type === Reader::CDATA) {
+            if ($type === \XMLReader::TEXT || $type === \XMLReader::CDATA) {
                 $text .= $reader->value;
                 $reader->read();
-            } elseif ($type === Reader::ELEMENT) {
+            } elseif ($type === \XMLReader::ELEMENT) {
                 $values[$reader->localName] = $reader->parseCurrentElement()['value'];
             } else {
                 $reader->read();
             }
-        } while ($reader->nodeType !== Reader::END_ELEMENT);
+        } while ($reader->nodeType !== \XMLReader::END_ELEMENT);
 
         $reader->read();
 
-        return $text ? $text : $values;
+        return $text ?: $values;
     }
 }

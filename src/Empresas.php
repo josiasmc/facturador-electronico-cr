@@ -255,7 +255,7 @@ class Empresas
     private function prepValue($value)
     {
         if (filter_var($value, FILTER_VALIDATE_INT) === false) {
-            $value = "'" . $value . "'";
+            $value = "'$value'";
         }
         return $value;
     }

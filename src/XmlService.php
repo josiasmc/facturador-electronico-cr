@@ -16,6 +16,9 @@
 
 namespace Contica\Facturacion;
 
+use Sabre\Xml\XmlSerializable;
+use Sabre\Xml\ParseException;
+
 /**
  * Todas los metodos para crear los archivos XML
  *
@@ -48,7 +51,7 @@ class XmlService extends \Sabre\Xml\Service
      *
      * @return string
      */
-    public function write(string $rootElementName, $value, string $contextUri = null)
+    public function write(string $rootElementName, $value, string $contextUri = null): string
     {
 
         $w = new XmlWriter();

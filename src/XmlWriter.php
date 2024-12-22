@@ -30,7 +30,7 @@ use Sabre\Xml\Service;
  */
 class XmlWriter extends \Sabre\Xml\Writer
 {
-    protected $written = array();
+    protected $written = [];
     public $sig = false;
 
     /**
@@ -40,7 +40,7 @@ class XmlWriter extends \Sabre\Xml\Writer
      *
      * @return void
      */
-    public function write($value)
+    public function write($value): void
     {
         if ($this->sig) {
             $this->sigSerialize($value);
@@ -55,14 +55,14 @@ class XmlWriter extends \Sabre\Xml\Writer
      *
      * @param mixed $value El valor para serializar
      *
-     * @return string El texto xml
+     * @return void
      */
     public function xmlSerialize($value)
     {
         if (is_scalar($value)) {
             // String, integer, float, boolean
             $this->text((string)$value);
-        } elseif (is_null($value)) {
+        } elseif ($value === null) {
             // nothing!
         } elseif (is_array($value) && array_key_exists('name', $value)) {
             // if the array had a 'name' element, we assume that this array
@@ -117,21 +117,21 @@ class XmlWriter extends \Sabre\Xml\Writer
      *
      * @param mixed $value El valor para serializar
      *
-     * @return string El texto xml
+     * @return void
      */
     public function sigSerialize($value)
     {
         if (is_scalar($value)) {
             // String, integer, float, boolean
             $this->text((string)$value);
-        } elseif (is_null($value)) {
+        } elseif ($value === null) {
             // nothing!
         } elseif (is_array($value) && array_key_exists('name', $value)) {
             // if the array had a 'name' element, we assume that this array
             // describes a 'name' and optionally 'attributes' and 'value'.
             $name = $value['name'];
-            $attributes = isset($value['attributes']) ? $value['attributes'] : [];
-            $value = isset($value['value']) ? $value['value'] : null;
+            $attributes = $value['attributes'] ?? [];
+            $value = $value['value'] ?? null;
 
             $this->startElement($name);
             $this->writeAttributes($attributes);
@@ -149,8 +149,8 @@ class XmlWriter extends \Sabre\Xml\Writer
                     // if the array had a 'name' element, we assume that this array
                     // describes a 'name' and optionally 'attributes' and 'value'.
                     $name = $item['name'];
-                    $attributes = isset($item['attributes']) ? $item['attributes'] : [];
-                    $item = isset($item['value']) ? $item['value'] : null;
+                    $attributes = $item['attributes'] ?? [];
+                    $item = $item['value'] ?? null;
 
                     $this->startElement($name);
                     $this->writeAttributes($attributes);
@@ -209,7 +209,7 @@ class XmlWriter extends \Sabre\Xml\Writer
     {
         if ($name[0] === '{') {
             // A namespace is given
-            list($namespace, $localName)
+            [$namespace, $localName]
                 = Service::parseClarkNotation($name);
 
             if (array_key_exists($namespace, $this->namespaceMap)) {
@@ -226,7 +226,7 @@ class XmlWriter extends \Sabre\Xml\Writer
                         $prefix = $this->namespaceMap[$namespace];
                         $this->written[$namespace] = $prefix;
                         // Write the namespace attribute
-                        $this->writeAttribute(($prefix ? 'xmlns:' . $prefix : 'xmlns'), $namespace);
+                        $this->writeAttribute($prefix ? "xmlns:$prefix" : 'xmlns', $namespace);
                     }
                 }
             } else {
@@ -249,7 +249,7 @@ class XmlWriter extends \Sabre\Xml\Writer
         if (!$this->sig) {
             if (!$this->namespacesWritten) {
                 foreach ($this->namespaceMap as $namespace => $prefix) {
-                    $this->writeAttribute(($prefix ? 'xmlns:' . $prefix : 'xmlns'), $namespace);
+                    $this->writeAttribute($prefix ? "xmlns:$prefix" : 'xmlns', $namespace);
                 }
                 $this->namespacesWritten = true;
             }
