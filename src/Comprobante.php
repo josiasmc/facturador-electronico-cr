@@ -172,7 +172,7 @@ class Comprobante
                 if (strlen($clave) !== 50) {
                     throw new Exception('La clave no tiene la correcta longitud');
                 }
-                $datos['Clave'] = $clave;
+                $datos = array_merge(['Clave' => $clave], $datos); // Clave va al principio del array
             }
             $this->id = $id;
             $this->datos = $datos;

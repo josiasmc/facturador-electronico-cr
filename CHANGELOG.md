@@ -6,6 +6,11 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.5.3] - 2024-12-23
+
+### Fixed
+- Arreglo de regresión en lugar donde se mete la clave autogenerada si los datos de factura no traen clave.
+
 ## [3.5.2] - 2024-12-21
 
 ### Fixed
