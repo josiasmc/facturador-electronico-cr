@@ -210,10 +210,10 @@ class CreadorXML
             }
         );
 
-        $sigPolicyId = 'https://atv.hacienda.go.cr/ATV/ComprobanteElectronico/docs/esquemas/2016/v4.3/Resoluci%C3%B3n_General_sobre_disposiciones_t%C3%A9cnicas_comprobantes_electr%C3%B3nicos_para_efectos_tributarios.pdf';
-        $sigPolicyHash = '0h7Q3dFHhu0bHbcZEgVc07cEcDlquUeG08HG6Iototo='; //hash en sha256
-        // CALCULADO CON sha256sum sobre el archivo descargado
-        // echo {sha256sum} | xxd -r -p | base64
+        // CALCULADO sobre el archivo descargado
+        // openssl dgst -sha256 -binary resolucion.pdf | base64
+        $sigPolicyId = 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/Resoluci%C3%B3n_General_sobre_disposiciones_t%C3%A9cnicas_comprobantes_electr%C3%B3nicos_para_efectos_tributarios.pdf';
+        $sigPolicyHash = 'DWxin1xWOeI8OuWQXazh4VjLWAaCLAA954em7DMh0h8=';
 
         date_default_timezone_set("America/Costa_Rica");
         $signTime = date('c');

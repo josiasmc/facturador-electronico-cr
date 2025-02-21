@@ -9,6 +9,7 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 ### Fixed
 
 - Suprimir error de deprecamiento de PHP74 en SDK de AWS
+- Actualización de PDF para la resolución de facturación, junto con su hash. Gracias, [fdelapena](https://github.com/fdelapena).
 
 ## [3.5.3] - 2024-12-23
 
