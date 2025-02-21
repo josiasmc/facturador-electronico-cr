@@ -83,7 +83,9 @@ class FacturadorElectronico
             if (!is_array($container['s3_client_options'])) {
                 throw new Exception('Error al conectarse al almacenaje S3. No se suministraron las opciones de la conexión.');
             }
-            $client = new S3Client($container['s3_client_options']);
+            $s3ClientOptions = $container['s3_client_options'];
+            $s3ClientOptions['suppress_php_deprecation_warning'] = true;
+            $client = new S3Client($s3ClientOptions);
             if (!isset($container['s3_bucket_name'])) {
                 throw new Exception('Error al conectarse al almacenaje S3. No se especificó el nombre del bucket.');
             }

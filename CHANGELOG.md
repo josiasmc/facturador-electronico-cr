@@ -6,39 +6,44 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+### Fixed
+
+- Suprimir error de deprecamiento de PHP74 en SDK de AWS
+
 ## [3.5.3] - 2024-12-23
 
 ### Fixed
+
 - Arreglo de regresión en lugar donde se mete la clave autogenerada si los datos de factura no traen clave.
 
 ## [3.5.2] - 2024-12-21
 
 ### Fixed
-- Arreglar algunas declaraciones de funciones
+
+- Algunas declaraciones de funciones fueron arregladas
 
 ## [3.5.1] - 2024-12-21
 
 ### Fixed
-- Devolver algunas dependencias para que funcione en PHP 7.4
 
-## [3.5.0] - 2024-12-19
+- Algunas dependencias fueron devueltas a una versión que permite su uso en php 7.4
+
+## [3.5.0] - 2024-12-21
 
 ### Added
+
 - Más validaciones agregadas al manejo de archivos temporales.
 
 ### Fixed
+
 - Algunas más validaciones para manejar errores en algunos casos adicionales.
-- Limpieza de código general.
+- Limpieza de código en general.
 - Actualización de dependencias.
 
 ### Removed
 
 - La función `Storage::run_migrations()` para actualizar la base de datos
-fue eliminada. Use `Storage::runMigrations() en su lugar`.
-
-## [3.4.2] - 2024-12-16
-
-- Agregar algunas validaciones al manejo de archivos temporales, usados al guardar xmls al archivo zip.
+fue eliminada. Use `Storage::runMigrations()` en su lugar.
 
 ## [3.4.1] - 2024-05-13
 
