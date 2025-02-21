@@ -6,6 +6,8 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.5.3] - 2025-02-21
+
 ### Fixed
 
 - Suprimir error de deprecamiento de PHP74 en SDK de AWS

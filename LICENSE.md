@@ -1,6 +1,6 @@
 # Licencia MIT (MIT)
 
-Copyright (c) 2020 Josias Martin <josias@solucionesinduso.com>
+Copyright (c) 2025 Josias Martin <josias@solucionesinduso.com>
 > Por la presente se concede permiso, libre de cargos, a cualquier persona
 > que obtenga una copia de este software y de los archivos de documentación
 > asociados (el "Software"), a utilizar el Software sin restricción,

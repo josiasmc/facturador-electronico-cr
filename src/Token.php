@@ -8,12 +8,10 @@
  *
  * PHP version 7.4
  *
- * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2018 Josias Martin
+ * @copyright 2025 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
- * @version   GIT: <git.id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
@@ -25,11 +23,6 @@ use Defuse\Crypto\Crypto;
 /**
  * Clase que contiene funciones para manejar tokens
  *
- * @category Facturacion-electronica
- * @package  Contica\Facturacion
- * @author   Josias Martin <josias@solucionesinduso.com>
- * @license  https://opensource.org/licenses/MIT MIT
- * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Token
 {

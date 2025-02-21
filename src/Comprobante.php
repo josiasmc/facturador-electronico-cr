@@ -5,12 +5,10 @@
  *
  * PHP version 7.4
  *
- * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2020 Josias Martin
+ * @copyright 2025 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
- * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
@@ -28,12 +26,6 @@ use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
 /**
  * Class providing functions to manage electronic invoices
  *
- * @category Facturacion-electronica
- * @package  Contica\Facturacion\Comprobante
- * @author   Josias Martin <josias@solucionesinduso.com>
- * @license  https://opensource.org/licenses/MIT MIT
- * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class Comprobante
 {

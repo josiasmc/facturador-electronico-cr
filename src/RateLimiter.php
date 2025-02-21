@@ -6,12 +6,10 @@
  *
  * PHP version 7.4
  *
- * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2020 Josias Martin
+ * @copyright 2025 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
- * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
@@ -20,12 +18,6 @@ namespace Contica\Facturacion;
 /**
  * Clase para manejar los limites de uso del API de Hacienda
  *
- * @category Facturacion-electronica
- * @package  Contica\Facturacion\Estadisticas
- * @author   Josias Martin <josias@solucionesinduso.com>
- * @license  https://opensource.org/licenses/MIT MIT
- * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class RateLimiter
 {

@@ -5,12 +5,10 @@
  *
  * PHP version 7.4
  *
- * @category  Facturacion-electronica
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2020 Josias Martin
+ * @copyright 2025 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
- * @version   GIT: <git-id>
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
@@ -19,14 +17,8 @@ namespace Contica\Facturacion;
 use Ramsey\Uuid\Uuid;
 
 /**
- * Todas los metodos para crear los archivos XML
+ * Metodos para crear los archivos XML
  *
- * @category Facturacion-electronica
- * @package  Contica\Facturacion\CreadorXML
- * @author   Josias Martin <josias@solucionesinduso.com>
- * @license  https://opensource.org/licenses/MIT MIT
- * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturador-electronico-cr
  */
 class CreadorXML
 {

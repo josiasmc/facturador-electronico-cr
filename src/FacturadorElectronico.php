@@ -8,13 +8,11 @@
  *
  * PHP version 7.4
  *
- * @category  Facturacion-electronica
  * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2020 Josias Martin
+ * @copyright 2025 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
- * @version   GIT: <git-id>
- * @link      https://github.com/josiasmc/facturacion-electronica-cr
+ * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
 namespace Contica\Facturacion;
@@ -32,12 +30,6 @@ use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
 /**
  * El proveedor de facturacion
  *
- * @category Facturacion-electronica
- * @package  Contica\eFacturacion
- * @author   Josias Martin <josias@solucionesinduso.com>
- * @license  https://opensource.org/licenses/MIT MIT
- * @version  Release: <package-version>
- * @link     https://github.com/josiasmc/facturacion-electronica-cr
  */
 class FacturadorElectronico
 {
