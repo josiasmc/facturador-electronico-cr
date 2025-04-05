@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.5.4] - 2025-04-05
+
+### Fixed
+
+- Manejar correctamente el estado de error que devuelve Hacienda al consultar un estado de comprobante.
+
 ## [3.5.3] - 2025-02-21
 
 ### Fixed

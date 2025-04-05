@@ -420,7 +420,7 @@ class FacturadorElectronico
             $comprobante->enviar();
             $estado = $comprobante->estado;
         }
-        $estado = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado'][$estado];
+        $estado = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado', 'error'][$estado];
         if ($xml === false) {
             throw new XmlNotFoundException("Consultando estado para el doc $clave con estado $estado dio un error de XML de respuesta no disponible.");
         }
