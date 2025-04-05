@@ -94,8 +94,10 @@ class Comprobante
                 $this->clave = $clave;
                 $this->tipo = $tipo;
                 $this->id = $id;
+                $stmt->close();
             } else {
                 //No existe
+                $stmt->close();
                 throw new Exception("El comprobante con clave $clave no existe");
             }
         } else {
@@ -616,6 +618,14 @@ class Comprobante
                         $estado = 4;
                     } elseif ($ind_estado == 'error') {
                         $estado = 5;
+                        // Guardar el estado de error
+                        $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+                        $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
+                        $stmt = $this->container['db']->prepare($sql);
+                        $mensaje = 'Error de Hacienda';
+                        $stmt->bind_param('iss', $estado, $mensaje, $clave);
+                        $stmt->execute();
+                        $stmt->close();
                     } else {
                         $estado = 1;
                     }
@@ -833,7 +843,9 @@ class Comprobante
             $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
             $stmt = $this->container['db']->prepare($sql);
             $stmt->bind_param('iss', $estado, $mensaje, $clave);
-            return $stmt->execute();
+            $res = $stmt->execute();
+            $stmt->close();
+            return $res;
         }
         return false;
     }
@@ -850,7 +862,9 @@ class Comprobante
         $stmt = $this->container['db']->prepare($sql);
         $stmt->bind_param('si', $this->clave, $this->id);
         $stmt->execute();
-        return $stmt->get_result()->fetch_row()[0];
+        $res = $stmt->get_result()->fetch_row()[0];
+        $stmt->close();
+        return $res;
     }
 
     /**

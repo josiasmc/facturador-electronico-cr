@@ -390,7 +390,7 @@ class FacturadorElectronico
      * Consultar el estado de un comprobante
      *
      * @param string $clave      La clave del comprobante a interrogar
-     * @param int    $tipo       E para Emisiones, R para Recepciones
+     * @param string $tipo       E para Emisiones, R para Recepciones
      * @param int    $id_empresa ID unico de empresa
      *
      * @return array El resultado
@@ -405,14 +405,15 @@ class FacturadorElectronico
         $estado = $comprobante->estado;
 
         $xml = '';
-        if ($estado > 2) {
+        if ($estado > 2 && $estado < 5) {
             // ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
         } elseif ($estado == 2) {
             // comprobante esta enviado
             $comprobante->consultarEstado();
             $estado = $comprobante->estado;
-            if ($estado > 2) {
+            if ($estado > 2 && $estado < 5) {
+                // Solo un comprobante aceptado o rechazado tiene xml de respuesta
                 $xml = $comprobante->cogerXmlRespuesta();
             }
         } elseif ($estado == 1) {
@@ -420,13 +421,13 @@ class FacturadorElectronico
             $comprobante->enviar();
             $estado = $comprobante->estado;
         }
-        $estado = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado', 'error'][$estado];
+        $estado_texto = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado', 'error'][$estado];
         if ($xml === false) {
-            throw new XmlNotFoundException("Consultando estado para el doc $clave con estado $estado dio un error de XML de respuesta no disponible.");
+            throw new XmlNotFoundException("Consultando estado para el doc $clave con estado $estado_texto dio un error de XML de respuesta no disponible.");
         }
         return [
             'clave' => $clave,
-            'estado' => $estado,
+            'estado' => $estado_texto,
             'mensaje' => $comprobante->cogerDetalleMensaje(),
             'xml' => $xml //xml de respuesta de Hacienda
         ];

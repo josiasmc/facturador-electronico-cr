@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.6.2] - 2025-04-05
+
+### Fixed
+
+- No tirar error de falta de xml cuando Hacienda responde con un mensaje de error.
+
 ## [3.6.1] - 2025-04-05
 
 ### Fixed
