@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.6.3] - 2025-06-23
+
+### Fixed
+
+- Tirar excepción cuando hay un fallo en preparar consultas de SQL.
+
 ## [3.6.2] - 2025-04-05
 
 ### Fixed

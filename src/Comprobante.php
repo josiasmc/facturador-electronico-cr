@@ -82,6 +82,9 @@ class Comprobante
                 "SELECT estado, $id_name FROM $tabla
                 WHERE clave=?"
             );
+            if ($stmt === false) {
+                throw new Exception('Error al preparar la consulta para los datos del comprobante con clave ' . $clave);
+            }
             $stmt->bind_param('s', $clave);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -622,6 +625,9 @@ class Comprobante
                         $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
                         $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
                         $stmt = $this->container['db']->prepare($sql);
+                        if ($stmt === false) {
+                            throw new Exception('Error al preparar la consulta para actualizar el estado del comprobante con clave ' . $clave);
+                        }
                         $mensaje = 'Error de Hacienda';
                         $stmt->bind_param('iss', $estado, $mensaje, $clave);
                         $stmt->execute();
@@ -842,6 +848,9 @@ class Comprobante
             $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
             $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
             $stmt = $this->container['db']->prepare($sql);
+            if ($stmt === false) {
+                throw new Exception('Error al preparar la consulta para actualizar el estado del comprobante con clave ' . $clave);
+            }
             $stmt->bind_param('iss', $estado, $mensaje, $clave);
             $res = $stmt->execute();
             $stmt->close();
@@ -860,6 +869,9 @@ class Comprobante
         $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
         $sql = "SELECT mensaje FROM $table WHERE clave=? AND id_empresa=?";
         $stmt = $this->container['db']->prepare($sql);
+        if ($stmt === false) {
+            throw new Exception('Error al preparar la consulta para obtener el mensaje del comprobante con clave ' . $this->clave);
+        }
         $stmt->bind_param('si', $this->clave, $this->id);
         $stmt->execute();
         $res = $stmt->get_result()->fetch_row()[0];

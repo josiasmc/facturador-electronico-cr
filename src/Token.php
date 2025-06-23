@@ -17,6 +17,7 @@
 
 namespace Contica\Facturacion;
 
+use Exception;
 use GuzzleHttp\Client;
 use Defuse\Crypto\Crypto;
 
@@ -52,6 +53,9 @@ class Token
         //coger la cedula de la empresa
         $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=?";
         $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            throw new Exception('Error al preparar la consulta para obtener los datos de la empresa para conseguir un token');
+        }
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_row();
@@ -244,7 +248,7 @@ class Token
         $sql  = "SELECT e.usuario_mh, e.contra_mh,
         a.client_id, a.uri_idp
         FROM fe_ambientes a
-        LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente 
+        LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente
         WHERE e.id_empresa='$id'";
         $result = $this->db->query($sql);
         if ($result->num_rows > 0) {

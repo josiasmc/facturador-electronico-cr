@@ -16,6 +16,7 @@
 
 namespace Contica\Facturacion;
 
+use Exception;
 use Defuse\Crypto\Crypto;
 
 /**
@@ -150,6 +151,9 @@ class Empresas
             $stmt = $db->prepare("SELECT id_empresa AS id, cedula FROM fe_empresas
             WHERE id_cliente=?");
             $stmt->bind_param('s', $client_id);
+        }
+        if ($stmt === false) {
+            throw new Exception('Error al preparar la consulta para obtener la empresa con id ' . $id);
         }
         $stmt->execute();
         $result = $stmt->get_result();

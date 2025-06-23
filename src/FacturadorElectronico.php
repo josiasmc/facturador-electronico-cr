@@ -246,6 +246,9 @@ class FacturadorElectronico
             //Validar el id
             $sql = "SELECT id_empresa, COUNT(*) FROM $tabla WHERE $col=? AND clave=?";
             $stmt = $db->prepare($sql);
+            if ($stmt === false) {
+                throw new Exception('Error al preparar la consulta para validar el id de la emisión o recepción con clave ' . $clave);
+            }
             $token = substr($token, 1);
             $stmt->bind_param('is', $token, $clave);
             $stmt->execute();
