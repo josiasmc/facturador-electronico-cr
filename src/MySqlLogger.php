@@ -4,7 +4,6 @@ namespace Contica\Facturacion;
 
 use Exception;
 use Monolog\Logger;
-use Monolog\LogRecord;
 use Monolog\Handler\AbstractProcessingHandler;
 
 class MySqlLogger extends AbstractProcessingHandler
@@ -17,7 +16,7 @@ class MySqlLogger extends AbstractProcessingHandler
         parent::__construct($level, $bubble);
     }
 
-    protected function write(LogRecord $record): void
+    protected function write(array $record): void
     {
         $stmt = $this->db->prepare(
             'INSERT INTO fe_monolog (channel, level, message, time) VALUES (?, ?, ?, ?)'
