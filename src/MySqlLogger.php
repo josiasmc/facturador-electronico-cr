@@ -29,7 +29,6 @@ class MySqlLogger extends AbstractProcessingHandler
         $message = $record['formatted'];
         $time = $record['datetime']->format('U');
         $stmt->bind_param('siss', $channel, $level, $message, $time);
-
         $stmt->execute();
         $stmt->close();
     }

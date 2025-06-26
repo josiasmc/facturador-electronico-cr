@@ -59,6 +59,7 @@ class Token
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_row();
+        $stmt->close();
         $this->cedula = $r[0];
         $this->ambiente = $r[1];
     }

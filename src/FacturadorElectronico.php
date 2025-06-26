@@ -253,6 +253,7 @@ class FacturadorElectronico
             $stmt->bind_param('is', $token, $clave);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_row();
+            $stmt->close();
             $id_empresa = $r[0];
             $valido = $r[1] > 0;
         }

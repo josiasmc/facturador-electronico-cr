@@ -146,17 +146,21 @@ class Empresas
             $stmt = $db->prepare("SELECT id_empresa AS id, cedula, usuario_mh AS usuario,
             contra_mh AS contra, id_ambiente AS ambiente FROM fe_empresas
             WHERE id_cliente=? AND id_empresa=?");
+            if ($stmt === false) {
+                throw new Exception('Error al preparar la consulta para obtener la empresa con id ' . $id);
+            }
             $stmt->bind_param('si', $client_id, $id);
         } else {
             $stmt = $db->prepare("SELECT id_empresa AS id, cedula FROM fe_empresas
             WHERE id_cliente=?");
+            if ($stmt === false) {
+                throw new Exception('Error al preparar la consulta para obtener la empresa con id ' . $id);
+            }
             $stmt->bind_param('s', $client_id);
-        }
-        if ($stmt === false) {
-            throw new Exception('Error al preparar la consulta para obtener la empresa con id ' . $id);
         }
         $stmt->execute();
         $result = $stmt->get_result();
+        $stmt->close();
         if ($result->num_rows > 0) {
             $return = [];
             while ($data = $result->fetch_assoc()) {

@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.6.4] - 2025-06-25
+
+### Fixed
+
+- Cerrar todas las consultas preparadas después de su uso.
+
 ## [3.6.3] - 2025-06-23
 
 ### Fixed
