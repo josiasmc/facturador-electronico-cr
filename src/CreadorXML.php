@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Clase con las funciones para crear los archivos XML y firmarlos
+ * Nueva Clase con las funciones para crear los archivos XML y firmarlos
  *
  * PHP version 7.4
  *
@@ -14,8 +14,6 @@
 
 namespace Contica\Facturacion;
 
-use Ramsey\Uuid\Uuid;
-
 /**
  * Metodos para crear los archivos XML
  *
@@ -27,18 +25,15 @@ class CreadorXML
     protected $privateKey;
     protected $modulus;
     protected $exponent;
-    protected $version;
-
     /**
      * Class constructor
      *
      * @param array $container Container with settings
      */
-    public function __construct($container, $version = '4.3')
+    public function __construct($container)
     {
         $empresas = new Empresas($container);
         $id = $container['id'];
-        //$this->version = $version;
         if ($keys = $empresas->getCert($id)) {
             $pin = $keys['pin'];
             $cert = $keys['llave'];
@@ -82,7 +77,13 @@ class CreadorXML
             $consecutivo = $datos['NumeroConsecutivo'];
         }
         $tipo = substr($consecutivo, 8, 2);
-        $ns = 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.3/';
+
+        // Determinar version basado en datos provistos
+        $version = '4.3';
+        if (isset($datos['ProveedorSistemas'])) {
+            $version = '4.4';
+        }
+        $ns = "https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v{$version}/";
 
         switch ($tipo) {
             // Factura electronica
@@ -90,41 +91,46 @@ class CreadorXML
                 $ns .= 'facturaElectronica';
                 $root_element = 'FacturaElectronica';
                 break;
-            // Nota de debito electronico
+                // Nota de debito electronico
             case '02':
                 $ns .= 'notaDebitoElectronica';
                 $root_element = 'NotaDebitoElectronica';
                 break;
-            // Nota de credito electronico
+                // Nota de credito electronico
             case '03':
                 $ns .= 'notaCreditoElectronica';
                 $root_element = 'NotaCreditoElectronica';
                 break;
-            // Tiquete electronico
+                // Tiquete electronico
             case '04':
                 $ns .= 'tiqueteElectronico';
                 $root_element = 'TiqueteElectronico';
                 break;
-            // Confirmacion de aceptacion del comprobante electronico
+                // Confirmacion de aceptacion del comprobante electronico
             case '05':
-            // Confirmacion de aceptacion parcial del comprobante electronico
+                // Confirmacion de aceptacion parcial del comprobante electronico
             case '06':
-            // Confirmacion de rechazo del comprobante electronico
+                // Confirmacion de rechazo del comprobante electronico
             case '07':
                 $ns .= 'mensajeReceptor';
                 $root_element = 'MensajeReceptor';
                 break;
-            // Factura electronica de compra
+                // Factura electronica de compra
             case '08':
                 $ns .= 'facturaElectronicaCompra';
                 $root_element = 'FacturaElectronicaCompra';
                 break;
-            // Factura electronica de exportacion
+                // Factura electronica de exportacion
             case '09':
                 $ns .= 'facturaElectronicaExportacion';
                 $root_element = 'FacturaElectronicaExportacion';
                 break;
-            // Quien sabe que mandaron
+                // Recibo electronico de pago
+            case '10':
+                $ns .= 'reciboElectronicoPago';
+                $root_element = 'ReciboElectronicoPago';
+                break;
+                // Quien sabe que mandaron
             default:
                 return false;
         }
@@ -154,13 +160,13 @@ class CreadorXML
         $ns_xsi   = 'http://www.w3.org/2001/XMLSchema-instance';
         $ns_xades = 'http://uri.etsi.org/01903/v1.3.2#';
         $xmlns = [
-            'keyinfo' =>
-                "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\"",
-            'signedprops' =>
-                "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xades=\"$ns_xades\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\"",
-            'signed' =>
-                "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\""
-            ];
+            'keyinfo'
+                => "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\"",
+            'signedprops'
+                => "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xades=\"$ns_xades\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\"",
+            'signed'
+                => "xmlns=\"$ns\" xmlns:ds=\"$ns_ds\" xmlns:xsd=\"$ns_xsd\" xmlns:xsi=\"$ns_xsi\""
+        ];
 
         $xmlService = new XmlService();
         $xmlService->namespaceMap = [
@@ -176,15 +182,14 @@ class CreadorXML
         $xades  = '{http://uri.etsi.org/01903/v1.3.2#}';
         $sha256alg = 'http://www.w3.org/2001/04/xmlenc#sha256';
 
-        $ID                 = (Uuid::uuid4())->toString();
-        $signatureID        = "S-$ID";
-        $signatureValueId   = "SV-$ID";
-        $XadesObjectId      = "XO-$ID";
-        $KeyInfoId          = "KI-$ID";
-        $Reference0Id       = "R0-$ID";
-        $Reference1Id       = "R1-$ID";
-        $SignedPropertiesId = "SP-$ID";
-        $QualifyingProps    = "QP-$ID";
+        $signatureID        = "S-ID";
+        $signatureValueId   = "SV-ID";
+        $XadesObjectId      = "XO-ID";
+        $KeyInfoId          = "KI-ID";
+        $Reference0Id       = "R0-ID";
+        $Reference1Id       = "R1-ID";
+        $SignedPropertiesId = "SP-ID";
+        $QualifyingProps    = "QP-ID";
 
         // Certificate digest
         $certDigest = base64_encode(
@@ -318,15 +323,15 @@ class CreadorXML
 
         $SignedInfo = [
             [
-            'name' => "{$ds}CanonicalizationMethod",
-            'attributes' => [
-                'Algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+                'name' => "{$ds}CanonicalizationMethod",
+                'attributes' => [
+                    'Algorithm' => 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
                 ]
             ],
             [
-            'name' => "{$ds}SignatureMethod",
-            'attributes' => [
-                'Algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
+                'name' => "{$ds}SignatureMethod",
+                'attributes' => [
+                    'Algorithm' => 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
                 ]
             ],
             // Reference for the XML document
@@ -340,8 +345,8 @@ class CreadorXML
                     "{$ds}Transforms" => [
                         'name' => "{$ds}Transform",
                         'attributes' => [
-                            'Algorithm' =>
-                            'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
+                            'Algorithm'
+                            => 'http://www.w3.org/2000/09/xmldsig#enveloped-signature'
                         ]
                     ],
                     [
