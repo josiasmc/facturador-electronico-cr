@@ -14,8 +14,6 @@
 
 namespace Contica\Facturacion;
 
-use Ramsey\Uuid\Uuid;
-
 /**
  * Metodos para crear los archivos XML
  *
