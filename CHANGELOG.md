@@ -2,11 +2,17 @@
 
 Cambios notables en `facturador-electronico-cr` serán documentados aquí.
 
-Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://keepachangelog.com/es-ES/1.0.0/).
+Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [Unreleased]
 
-## [3.6.4] - 2025-06-25
+## [3.7.0] - 2025-08-29
+
+### Added
+
+- Agregar soporte para version 4.4 de facturación electrónica.
+
+## [3.6.5] - 2025-06-25
 
 ### Fixed
 

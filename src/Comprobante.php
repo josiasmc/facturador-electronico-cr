@@ -145,7 +145,9 @@ class Comprobante
                     // Este documento tiene multiples referencias
                     foreach ($datos['InformacionReferencia'] as $referencia) {
                         // Revisar cada referencia
-                        if ($referencia['TipoDoc'] == '08') {
+                        $tipoDocV43 = $referencia['TipoDoc'] ?? '';
+                        $tipoDocV44 = $referencia['TipoDocIR'] ?? '';
+                        if ($tipoDocV43 == '08' || $tipoDocV44 == '08') {
                             $ref = $referencia;
                             break;
                         }
@@ -153,7 +155,10 @@ class Comprobante
                 } else {
                     $ref = $datos['InformacionReferencia'];
                 }
-                if ($ref && $ref['TipoDoc'] == '08') {
+                $tipoDocV43 = $ref['TipoDoc'] ?? '';
+                $tipoDocV44 = $ref['TipoDocIR'] ?? '';
+
+                if ($tipoDocV43 == '08' || $tipoDocV44 == '08') {
                     $situacion = 2; //Contingencia
                 }
             }
@@ -217,7 +222,7 @@ class Comprobante
             //Abrimos el existente y le añadimos los archivos
             try {
                 $contents = $filesystem->read("$zip_path$zip_name");
-            } catch (FilesystemException | UnableToReadFile $exception) {
+            } catch (FilesystemException|UnableToReadFile $exception) {
                 throw new Exception("No se pudo abrir el archivo zip para el documento $filename.\n");
             }
 
@@ -253,7 +258,7 @@ class Comprobante
         unlink($tmpfile);
         try {
             $filesystem->write("$zip_path$zip_name", $contents);
-        } catch (FilesystemException | UnableToWriteFile $exception) {
+        } catch (FilesystemException|UnableToWriteFile $exception) {
             throw new Exception("Fallo al guardar el archivo $zip_name\n");
         }
 
@@ -337,7 +342,7 @@ class Comprobante
             if ($result === false) {
                 throw new Exception("Fallo al guardar el archivo temporal para $zip_name");
             }
-        } catch (FilesystemException | UnableToReadFile $exception) {
+        } catch (FilesystemException|UnableToReadFile $exception) {
             throw new XmlNotFoundException("No se pudo leer el archivo $zip_name");
         }
 
@@ -437,7 +442,7 @@ class Comprobante
                 try {
                     $contents = $filesystem->read("$path$zip_name");
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException | UnableToReadFile $exception) {
+                } catch (FilesystemException|UnableToReadFile $exception) {
                     throw new Exception("No se pudo leer el archivo $zip_name");
                 }
 
@@ -718,7 +723,7 @@ class Comprobante
             if ($result === false) {
                 throw new Exception("Error al guardar archivo $zip_name a la carpeta temporal");
             }
-        } catch (FilesystemException | UnableToReadFile $exception) {
+        } catch (FilesystemException|UnableToReadFile $exception) {
             throw new XmlNotFoundException("No se pudo leer el archivo $zip_name: {$exception->getMessage()}");
         }
 
@@ -816,7 +821,7 @@ class Comprobante
                 try {
                     $contents = $filesystem->read($storage_path . $zip_name);
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException | UnableToReadFile $exception) {
+                } catch (FilesystemException|UnableToReadFile $exception) {
                     throw new Exception("No se pudo abrir el archivo zip para el documento $filename.");
                 }
                 if ($zip->open($tmpfile) !== true) {
@@ -835,7 +840,7 @@ class Comprobante
             unlink($tmpfile);
             try {
                 $filesystem->write("$storage_path$zip_name", $contents);
-            } catch (FilesystemException | UnableToWriteFile $exception) {
+            } catch (FilesystemException|UnableToWriteFile $exception) {
                 throw new Exception("Fallo al guardar el archivo <$zip_name>\n");
             }
 
