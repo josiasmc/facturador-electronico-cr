@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.7.1] - 2025-08-29
+
+### Added
+
+- Agregar soporte para leer los campos complejos nuevos de TotalDesgloseImpuesto y MedioPago
+
 ## [3.7.0] - 2025-08-29
 
 ### Added

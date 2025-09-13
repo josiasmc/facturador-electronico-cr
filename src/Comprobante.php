@@ -954,6 +954,11 @@ class Comprobante
             //Comprobante viejo
             $elementMap["{$xmlns}Codigo"] = $f_codigoParser;
         }
+        if (stripos($xmlns, 'v4.4') > 0) {
+            //Comprobante viejo
+            $elementMap["{$xmlns}TotalDesgloseImpuesto"] = $f_repeatKeyValue;
+            $elementMap["{$xmlns}MedioPago"] = $f_repeatKeyValue;
+        }
         $service->elementMap = $elementMap;
         return $service->parse($xml);
     }
