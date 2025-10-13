@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.7.2] - 2025-10-10
+
+### Fixed
+
+- Leer y escribir archivos xml para Recibos Electrónicos de Pago
+
 ## [3.7.1] - 2025-09-12
 
 ### Added

@@ -307,8 +307,8 @@ class FacturadorElectronico
             $clave = $datos['Clave'];
             $filesystem = $this->container['filesystem'];
             $path = "$id_empresa/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
-            $tipo_doc = substr($clave, 30, 1) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+            $tipo_doc = substr($clave, 29, 2) - 1;
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
             $filename = "$tipo_doc$clave.xml";
             $zip_name = "R$clave.zip";
 
@@ -319,7 +319,7 @@ class FacturadorElectronico
                 try {
                     $contents = $filesystem->read($path . $zip_name);
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException | UnableToReadFile $exception) {
+                } catch (FilesystemException|UnableToReadFile $exception) {
                     throw new Exception("No se pudo abrir el archivo zip para el documento $filename.");
                 }
                 if ($zip->open($tmpfile) !== true) {
@@ -344,7 +344,7 @@ class FacturadorElectronico
             unlink($tmpfile);
             try {
                 $filesystem->write("$path$zip_name", $contents);
-            } catch (FilesystemException | UnableToWriteFile $exception) {
+            } catch (FilesystemException|UnableToWriteFile $exception) {
                 throw new Exception("Fallo al guardar el archivo $zip_name\n");
             }
         }
@@ -483,8 +483,8 @@ class FacturadorElectronico
             } elseif ($tipo == 4) {
                 $tipo_doc = 'MHMR';
             } else {
-                $tipo_doc = substr($clave, 30, 1) - 1;
-                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+                $tipo_doc = substr($clave, 29, 2) - 1;
+                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
             }
             $filename = $tipo_doc . $clave . '.xml';
 
@@ -493,7 +493,7 @@ class FacturadorElectronico
             try {
                 $contents = $filesystem->read($storage_path . $zip_name);
                 file_put_contents($tmpfile, $contents);
-            } catch (FilesystemException | UnableToReadFile $exception) {
+            } catch (FilesystemException|UnableToReadFile $exception) {
                 throw new Exception("No se pudo leer el archivo <{$zip_name}>");
             }
 

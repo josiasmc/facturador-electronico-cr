@@ -318,8 +318,8 @@ class Comprobante
             $tipo_doc = 'MR';
         } else {
             $zipname = "E$clave.zip";
-            $tipo_doc = substr($this->consecutivo, 9, 1) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+            $tipo_doc = substr($this->consecutivo, 8, 2) - 1;
+            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
         }
         $filename = "$tipo_doc$clave.xml";
         return true;
@@ -433,8 +433,8 @@ class Comprobante
                 //Conseguir el archivo XML recepcionado
                 $path = "$idEmpresa/" . "20" . substr($this->clave, 7, 2) . substr($this->clave, 5, 2) . '/';
                 $zip_name = "R{$this->clave}.zip";
-                $tipo_doc = substr($this->clave, 30, 1) - 1;
-                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE'][$tipo_doc];
+                $tipo_doc = substr($this->clave, 29, 2) - 1;
+                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
                 $filename = "$tipo_doc{$this->clave}.xml";
 
                 $filesystem = $this->container['filesystem'];
