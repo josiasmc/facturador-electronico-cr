@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [3.7.3] - 2025-11-03
+
+### Fixed
+
+- Eliminar soporte para emitir versiones anteriores a 4.4
+
 ## [3.7.2] - 2025-10-10
 
 ### Fixed

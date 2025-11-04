@@ -79,10 +79,7 @@ class CreadorXML
         $tipo = substr($consecutivo, 8, 2);
 
         // Determinar version basado en datos provistos
-        $version = '4.3';
-        if (isset($datos['ProveedorSistemas'])) {
-            $version = '4.4';
-        }
+        $version = '4.4';
         $ns = "https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v{$version}/";
 
         switch ($tipo) {
