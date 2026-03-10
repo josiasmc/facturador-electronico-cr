@@ -42,25 +42,13 @@ class FacturadorElectronico
     public function __construct($db, $settings = [])
     {
         // Ajustes predeterminados
-        $container = Container::fromArray(
-            array_merge(
-                [
-                    "crypto_key" => "", // Llave para utilizar en encriptado de datos en la BD
-                    "client_id" => 0, // ID de empresa
-                    "storage_path" => "", // Ruta para guardar los comprobantes
-                    "callback_url" => "", // URL para Hacienda enviar las respuestas
-                    "storage_type" => "local", // Lugar en que se guardan los comprobantes. 'local' | 's3',
-                    "s3_client_options" => [], // Opciones para el cliente de S3
-                ],
-                $settings,
-            ),
-        );
+        $container = Container::fromArray($settings);
 
-        $crypto_key = $container->crypto_key;
-        $container->crypto_key = $crypto_key
-            ? Key::loadFromAsciiSafeString($crypto_key)
-            : "";
         $container->db = $db;
+        $crypto_key = $settings["crypto_key"] ?? null;
+        if ($crypto_key !== null) {
+            $container->crypto_key = Key::loadFromAsciiSafeString($crypto_key);
+        }
 
         // Inicializar el logger
         $loglevel = \Monolog\Level::Info;
@@ -79,13 +67,12 @@ class FacturadorElectronico
             }
             $adapter = new LocalFilesystemAdapter($container->storage_path);
         } elseif ($container->storage_type == "s3") {
-            if (!is_array($container->s3_storage_options)) {
+            if (!is_array($container->s3_client_options)) {
                 throw new Exception(
                     "Error al conectarse al almacenaje S3. No se suministraron las opciones de la conexión.",
                 );
             }
-            $s3ClientOptions = $container->s3_storage_options;
-            $client = new S3Client($s3ClientOptions);
+            $client = new S3Client($container->s3_client_options);
             if (!isset($container->s3_bucket_name)) {
                 throw new Exception(
                     "Error al conectarse al almacenaje S3. No se especificó el nombre del bucket.",

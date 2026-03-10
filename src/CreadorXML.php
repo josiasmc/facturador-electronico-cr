@@ -35,7 +35,7 @@ class CreadorXML
             $pin = $keys["pin"];
             $cert = $keys["llave"];
             $read = openssl_pkcs12_read($cert, $key, $pin);
-            if ($read == false) {
+            if ($read === false) {
                 throw new \Exception("Error al abrir la llave criptográfica.");
             }
             $certData = openssl_x509_parse($key["cert"]);

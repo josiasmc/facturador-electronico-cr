@@ -56,12 +56,18 @@ class Token
                 "Error al preparar la consulta para obtener los datos de la empresa para conseguir un token",
             );
         }
-        $stmt->bind_param("i", $id);
+        $stmt->bind_param("i", $company_id);
         $stmt->execute();
-        $r = $stmt->get_result()->fetch_row();
+        $r = $stmt->get_result();
+        if ($r->num_rows == 0) {
+            throw new Exception(
+                "No se encontraron datos de conexión a Hacienda para la empresa",
+            );
+        }
+        $row = $r->fetch_row();
         $stmt->close();
-        $this->cedula = $r[0];
-        $this->ambiente = $r[1];
+        $this->cedula = $row[0];
+        $this->ambiente = $row[1];
     }
 
     /**

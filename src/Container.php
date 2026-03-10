@@ -13,22 +13,23 @@
 namespace Contica\Facturacion;
 
 use Monolog\Logger;
+use Defuse\Crypto\Key;
 use League\Flysystem\Filesystem;
 
 class Container
 {
     public function __construct(
-        public \mysqli $db,
-        public string $crypto_key = "",
+        public ?\mysqli $db = null,
+        public ?Key $crypto_key = null,
         public int $client_id = 0,
         public string $storage_path = "",
         public string $callback_url = "",
         public string $storage_type = "local",
         public string $s3_bucket_name = "",
-        public array $s3_storage_options = [],
-        public Logger $logger,
-        public RateLimiter $rate_limiter,
-        public Filesystem $filesystem,
+        public array $s3_client_options = [],
+        public ?Logger $logger = null,
+        public ?RateLimiter $rate_limiter = null,
+        public ?Filesystem $filesystem = null,
     ) {}
 
     public static function fromArray(array $data): self
@@ -44,13 +45,8 @@ class Container
     private const allowed_keys = [
         "callback_url",
         "client_id",
-        "crypto_key",
-        "db",
-        "filesystem",
-        "logger",
-        "rate_limiter",
         "s3_bucket_name",
-        "s3_storage_options",
+        "s3_client_options",
         "storage_path",
         "storage_type",
     ];

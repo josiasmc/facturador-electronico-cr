@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-03-10
+
+### Fixed
+
+- Arreglo de bugs
+
 ## [4.0.0] - 2026-03-09
 
 ### Changed
