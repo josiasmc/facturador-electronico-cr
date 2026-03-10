@@ -3,11 +3,9 @@
 /**
  * Interfaz para procesar los comprobantes electronicos
  *
- * PHP version 7.4
- *
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -29,63 +27,72 @@ use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
  */
 class Comprobante
 {
-    protected $container;
-    protected $id;    //ID unico de la empresa
-    public $clave;    // clave del comprobante
-    public $estado;   // estado: 1=En cola, 2=Enviado, 3=Aceptado 4=Rechazado 5=En cola con error de envio
+    protected Container $container;
+    protected $id; //ID unico de la empresa
+    public $clave; // clave del comprobante
+    public $estado; // estado: 1=En cola, 2=Enviado, 3=Aceptado 4=Rechazado 5=En cola con error de envio
     protected $datos; // la informacion del comprobante
-    protected $xml;   //XML del comprobante
-    protected $tipo;  //E para emision, o R para recepcion
+    protected $xml; //XML del comprobante
+    protected $tipo; //E para emision, o R para recepcion
     protected $id_comprobante; //id_emision o id_recepcion
-    protected $consecutivo = ''; //Consecutivo del comprobante
+    protected $consecutivo = ""; //Consecutivo del comprobante
     public $enHacienda = null; //Utilizado al consultar estado de comprobante a recepcionar
 
-    public const EMISION = 1;   //Comprobante de emision
+    public const EMISION = 1; //Comprobante de emision
     public const RECEPCION = 2; //Compbrobante de recepcion
 
     /**
      * Constructor del comprobante
      *
-     * @param array $container   El contenedor del facturador
+     * @param Container $container   El contenedor del facturador
      * @param array $datos       Los datos del comprobante a crear o cargar
      * @param int   $id          El ID unico de la empresa emisora
      * @param bool  $sinInternet True para un comprobante que se genero sin conexion
      */
-    public function __construct($container, $datos, $id, $sinInternet = false)
-    {
-        date_default_timezone_set('America/Costa_Rica');
+    public function __construct(
+        Container $container,
+        $datos,
+        $id,
+        $sinInternet = false,
+    ) {
+        date_default_timezone_set("America/Costa_Rica");
         $this->container = $container;
 
-        if (isset($datos['clave']) && isset($datos['tipo'])) {
+        if (isset($datos["clave"]) && isset($datos["tipo"])) {
             //Cargar un comprobante que ya esta hecho
-            $clave = $datos['clave'];
-            $tipo = $datos['tipo']; //E = emision, R = recepcion, C = consulta en Hacienda
-            if ($tipo === 'E') {
-                $tabla = 'fe_emisiones';
-                $id_name = 'id_emision';
-            } elseif ($tipo === 'R') {
-                $tabla = 'fe_recepciones';
-                $id_name = 'id_recepcion';
-            } elseif ($tipo === 'C') {
+            $clave = $datos["clave"];
+            $tipo = $datos["tipo"]; //E = emision, R = recepcion, C = consulta en Hacienda
+            if ($tipo === "E") {
+                $tabla = "fe_emisiones";
+                $id_name = "id_emision";
+            } elseif ($tipo === "R") {
+                $tabla = "fe_recepciones";
+                $id_name = "id_recepcion";
+            } elseif ($tipo === "C") {
                 $this->clave = $clave;
                 $this->tipo = $tipo;
                 $this->id = $id;
                 $this->estado = 2;
                 return;
             } else {
-                throw new Exception('El tipo provisto para el comprobante no es válido.');
+                throw new Exception(
+                    "El tipo provisto para el comprobante no es válido.",
+                );
             }
 
-            $db = $container['db'];
+            $db = $container->db;
 
             $stmt = $db->prepare(
                 "SELECT estado, $id_name FROM $tabla
-                WHERE clave=?"
+                WHERE clave=?",
             );
             if ($stmt === false) {
-                throw new Exception('Error al preparar la consulta para los datos del comprobante con clave ' . $clave);
+                throw new Exception(
+                    "Error al preparar la consulta para los datos del comprobante con clave " .
+                        $clave,
+                );
             }
-            $stmt->bind_param('s', $clave);
+            $stmt->bind_param("s", $clave);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result->num_rows > 0) {
@@ -101,34 +108,38 @@ class Comprobante
             } else {
                 //No existe
                 $stmt->close();
-                throw new Exception("El comprobante con clave $clave no existe");
+                throw new Exception(
+                    "El comprobante con clave $clave no existe",
+                );
             }
         } else {
             //-------- Crear un nuevo comprobante --------
-            if (isset($datos['NumeroConsecutivoReceptor'])) {
+            if (isset($datos["NumeroConsecutivoReceptor"])) {
                 //Crear un mensaje de confirmacion nuevo
-                $this->consecutivo = $datos['NumeroConsecutivoReceptor'];
-                $this->tipo = 'R';
-                $cedula = '';
+                $this->consecutivo = $datos["NumeroConsecutivoReceptor"];
+                $this->tipo = "R";
+                $cedula = "";
             } else {
                 //Crear un comprobante nuevo
-                $cedula = $datos['Emisor']['Identificacion']['Numero'];
-                $this->consecutivo = $datos['NumeroConsecutivo'];
-                $this->tipo = 'E';
+                $cedula = $datos["Emisor"]["Identificacion"]["Numero"];
+                $this->consecutivo = $datos["NumeroConsecutivo"];
+                $this->tipo = "E";
             }
-            if (isset($datos['Clave'])) {
-                $clave = $datos['Clave'];
+            if (isset($datos["Clave"])) {
+                $clave = $datos["Clave"];
             }
 
             //---Revisar si el emisor esta guardado---
             $empresas = new Empresas($container);
             if (!$empresas->get($id)) {
-                throw new Exception('El emisor no esta registrado');
-            };
+                throw new Exception("El emisor no esta registrado");
+            }
 
             //---Probar si enviaron consecutivo bueno---
             if (strlen($this->consecutivo) !== 20) {
-                throw new Exception('El consecutivo no tiene la correcta longitud');
+                throw new Exception(
+                    "El consecutivo no tiene la correcta longitud",
+                );
             }
 
             //---Especificar la situacion---
@@ -137,44 +148,46 @@ class Comprobante
             } else {
                 $situacion = 1; //Normal
             }
-            if (isset($datos['InformacionReferencia'])) {
+            if (isset($datos["InformacionReferencia"])) {
                 // Revisar a ver si viene una referencia del tipo de documento de contingencia
-                $arrayKeys = array_keys($datos['InformacionReferencia']);
+                $arrayKeys = array_keys($datos["InformacionReferencia"]);
                 $ref = null;
                 if (is_numeric($arrayKeys[0])) {
                     // Este documento tiene multiples referencias
-                    foreach ($datos['InformacionReferencia'] as $referencia) {
+                    foreach ($datos["InformacionReferencia"] as $referencia) {
                         // Revisar cada referencia
-                        $tipoDocV43 = $referencia['TipoDoc'] ?? '';
-                        $tipoDocV44 = $referencia['TipoDocIR'] ?? '';
-                        if ($tipoDocV43 == '08' || $tipoDocV44 == '08') {
+                        $tipoDocV43 = $referencia["TipoDoc"] ?? "";
+                        $tipoDocV44 = $referencia["TipoDocIR"] ?? "";
+                        if ($tipoDocV43 == "08" || $tipoDocV44 == "08") {
                             $ref = $referencia;
                             break;
                         }
                     }
                 } else {
-                    $ref = $datos['InformacionReferencia'];
+                    $ref = $datos["InformacionReferencia"];
                 }
-                $tipoDocV43 = $ref['TipoDoc'] ?? '';
-                $tipoDocV44 = $ref['TipoDocIR'] ?? '';
+                $tipoDocV43 = $ref["TipoDoc"] ?? "";
+                $tipoDocV44 = $ref["TipoDocIR"] ?? "";
 
-                if ($tipoDocV43 == '08' || $tipoDocV44 == '08') {
+                if ($tipoDocV43 == "08" || $tipoDocV44 == "08") {
                     $situacion = 2; //Contingencia
                 }
             }
 
             //---Generar clave si no existe---
-            if (!isset($datos['Clave']) || strlen($datos['Clave']) != 50) {
+            if (!isset($datos["Clave"]) || strlen($datos["Clave"]) != 50) {
                 //Generar la clave numerica
-                $pais = '506';
-                $fecha = date('dmy');
-                $cedula12 = str_pad($cedula, 12, '0', STR_PAD_LEFT);
+                $pais = "506";
+                $fecha = date("dmy");
+                $cedula12 = str_pad($cedula, 12, "0", STR_PAD_LEFT);
                 $codigo = rand(10000000, 99999999);
                 $clave = "{$pais}{$fecha}{$cedula12}{$this->consecutivo}$situacion$codigo";
                 if (strlen($clave) !== 50) {
-                    throw new Exception('La clave no tiene la correcta longitud');
+                    throw new Exception(
+                        "La clave no tiene la correcta longitud",
+                    );
                 }
-                $datos = array_merge(['Clave' => $clave], $datos); // Clave va al principio del array
+                $datos = array_merge(["Clave" => $clave], $datos); // Clave va al principio del array
             }
             $this->id = $id;
             $this->datos = $datos;
@@ -182,12 +195,13 @@ class Comprobante
             $this->clave = $clave;
 
             //---Generar el xml de este comprobante
-            $this->container['id'] = $id; //Guardar el id de empresa
-            $creadorXml = new CreadorXML($this->container);
+            $creadorXml = new CreadorXML($this->container, $id);
             $xml = $creadorXml->crearXml($datos);
             if ($xml === false) {
                 // no se genero... algun error
-                throw new Exception('Documento XML no generado. Favor revisar contenido.');
+                throw new Exception(
+                    "Documento XML no generado. Favor revisar contenido.",
+                );
             }
             $this->xml = $xml;
         }
@@ -203,27 +217,33 @@ class Comprobante
         if ($this->estado > 0) {
             return false;
         }
-        $db = $this->container['db'];
+        $db = $this->container->db;
         $clave = $this->clave;
-        if ($this->tipo == 'R') {
-            $table = 'fe_recepciones';
+        if ($this->tipo == "R") {
+            $table = "fe_recepciones";
             $accion = 2; //ENVIAR_RECEPCION
         } else {
-            $table = 'fe_emisiones';
+            $table = "fe_emisiones";
             $accion = 1; //ENVIAR_EMISION
         }
+        $zip_path = $zip_name = $filename = "";
         $this->generateFilenames($zip_path, $zip_name, $filename);
 
         //Guardar el archivo XML
-        $filesystem = $this->container['filesystem'];
+        $filesystem = $this->container->filesystem;
         $zip = new ZipArchive();
-        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
-        if ($this->tipo == 'R' && $filesystem->fileExists("$zip_path$zip_name")) {
+        $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
+        if (
+            $this->tipo == "R" &&
+            $filesystem->fileExists("$zip_path$zip_name")
+        ) {
             //Abrimos el existente y le añadimos los archivos
             try {
                 $contents = $filesystem->read("$zip_path$zip_name");
-            } catch (FilesystemException|UnableToReadFile $exception) {
-                throw new Exception("No se pudo abrir el archivo zip para el documento $filename.\n");
+            } catch (FilesystemException | UnableToReadFile $_) {
+                throw new Exception(
+                    "No se pudo abrir el archivo zip para el documento $filename.\n",
+                );
             }
 
             if (file_put_contents($tmpfile, $contents) === false) {
@@ -231,7 +251,9 @@ class Comprobante
             }
 
             if ($zip->open($tmpfile) !== true) {
-                throw new Exception("Fallo al abrir <$zip_name> guardando MR\n");
+                throw new Exception(
+                    "Fallo al abrir <$zip_name> guardando MR\n",
+                );
             }
         } else {
             //Creamos uno nuevo
@@ -240,7 +262,9 @@ class Comprobante
             }
         }
         if ($zip->addFromString($filename, $this->xml) === false) {
-            throw new Exception("Fallo al escribir documento xml al archivo Zip $zip_name");
+            throw new Exception(
+                "Fallo al escribir documento xml al archivo Zip $zip_name",
+            );
         }
         if ($zip->close() === false) {
             throw new Exception("Fallo al cerrar el archivo Zip $zip_name");
@@ -258,7 +282,7 @@ class Comprobante
         unlink($tmpfile);
         try {
             $filesystem->write("$zip_path$zip_name", $contents);
-        } catch (FilesystemException|UnableToWriteFile $exception) {
+        } catch (FilesystemException | UnableToWriteFile $exception) {
             throw new Exception("Fallo al guardar el archivo $zip_name\n");
         }
 
@@ -271,7 +295,7 @@ class Comprobante
             $hasRecord = $res->fetch_row()[0] > 0;
         }
 
-        $timestamp = (new DateTime())->getTimestamp();
+        $timestamp = new DateTime()->getTimestamp();
         if ($hasRecord) {
             // Actualizar los registros
             $sql = "UPDATE $table SET estado=1
@@ -311,15 +335,30 @@ class Comprobante
     private function generateFilenames(&$path, &$zipname, &$filename)
     {
         $clave = $this->clave;
-        $path = "{$this->id}/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
+        $path =
+            "{$this->id}/20" .
+            substr($clave, 7, 2) .
+            substr($clave, 5, 2) .
+            "/";
 
-        if ($this->tipo == 'R') {
+        if ($this->tipo == "R") {
             $zipname = "R$clave.zip";
-            $tipo_doc = 'MR';
+            $tipo_doc = "MR";
         } else {
             $zipname = "E$clave.zip";
             $tipo_doc = substr($this->consecutivo, 8, 2) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
+            $tipo_doc = [
+                "FE",
+                "NDE",
+                "NCE",
+                "TE",
+                "MR",
+                "MR",
+                "MR",
+                "FEC",
+                "FEE",
+                "REP",
+            ][$tipo_doc];
         }
         $filename = "$tipo_doc$clave.xml";
         return true;
@@ -332,18 +371,23 @@ class Comprobante
      */
     private function cargarDatosXml()
     {
+        $zip_path = $zip_name = $filename = "";
         $this->generateFilenames($zip_path, $zip_name, $filename);
         //Abrir el archivo XML
-        $filesystem = $this->container['filesystem'];
-        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+        $filesystem = $this->container->filesystem;
+        $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
         try {
             $contents = $filesystem->read("$zip_path$zip_name");
             $result = file_put_contents($tmpfile, $contents);
             if ($result === false) {
-                throw new Exception("Fallo al guardar el archivo temporal para $zip_name");
+                throw new Exception(
+                    "Fallo al guardar el archivo temporal para $zip_name",
+                );
             }
-        } catch (FilesystemException|UnableToReadFile $exception) {
-            throw new XmlNotFoundException("No se pudo leer el archivo $zip_name");
+        } catch (FilesystemException | UnableToReadFile $_) {
+            throw new XmlNotFoundException(
+                "No se pudo leer el archivo $zip_name",
+            );
         }
 
         $zip = new ZipArchive();
@@ -382,73 +426,97 @@ class Comprobante
                 $loaded = false;
             }
             if ($loaded === false) {
-                $this->container['log']->notice(
-                    "No se pudieron conseguir los datos del xml al enviar {$this->tipo}{$this->clave}."
+                $this->container->logger->notice(
+                    "No se pudieron conseguir los datos del xml al enviar {$this->tipo}{$this->clave}.",
                 );
-                throw new XmlNotFoundException("El xml para el comprobante con clave {$this->clave} no se pudo cargar.");
+                throw new XmlNotFoundException(
+                    "El xml para el comprobante con clave {$this->clave} no se pudo cargar.",
+                );
             }
         }
         $datos = $this->datos;
         $idEmpresa = $this->id;
-        $rateLimiter = $this->container['rate_limiter'];
+        $rateLimiter = $this->container->rate_limiter;
         if (!$rateLimiter->canPost($idEmpresa)) {
             // Limite exedido para esta cedula
             $this->aplazarEnvio();
             return false;
         }
         // Intentar conseguir un token de acceso
-        $token = (new Token($this->container, $idEmpresa))->getToken();
+        $token = new Token($this->container, $idEmpresa)->getToken();
         if ($token) {
             //Tenemos token, entonces intentamos hacer el envio
-            if ($this->tipo == 'E') {
+            if ($this->tipo == "E") {
                 //Cogemos datos para una factura
                 $accion = 1; //enviar emision
-                $table = 'fe_emisiones';
+                $table = "fe_emisiones";
                 $post = [
-                    'clave' => $this->clave,
-                    'fecha' => $datos['FechaEmision'],
-                    'emisor' => [
-                        'tipoIdentificacion' => $datos['Emisor']['Identificacion']['Tipo'],
-                        'numeroIdentificacion' => $datos['Emisor']['Identificacion']['Numero']
-                    ]
+                    "clave" => $this->clave,
+                    "fecha" => $datos["FechaEmision"],
+                    "emisor" => [
+                        "tipoIdentificacion" =>
+                            $datos["Emisor"]["Identificacion"]["Tipo"],
+                        "numeroIdentificacion" =>
+                            $datos["Emisor"]["Identificacion"]["Numero"],
+                    ],
                 ];
-                if (isset($datos['Receptor']['Identificacion'])) {
-                    $post['receptor'] = [
-                        'tipoIdentificacion' => $datos['Receptor']['Identificacion']['Tipo'],
-                        'numeroIdentificacion' => $datos['Receptor']['Identificacion']['Numero']
+                if (isset($datos["Receptor"]["Identificacion"])) {
+                    $post["receptor"] = [
+                        "tipoIdentificacion" =>
+                            $datos["Receptor"]["Identificacion"]["Tipo"],
+                        "numeroIdentificacion" =>
+                            $datos["Receptor"]["Identificacion"]["Numero"],
                     ];
                 }
             } else {
                 //Cogemos datos para un mensaje receptor
-                $cedula = ltrim($datos['NumeroCedulaReceptor'], '0');
+                $cedula = ltrim($datos["NumeroCedulaReceptor"], "0");
                 if (strlen($cedula == 9)) {
-                    $tipoId = '01';
+                    $tipoId = "01";
                 } elseif (strlen($cedula > 10)) {
-                    $tipoId = '03';
+                    $tipoId = "03";
                 } elseif (preg_match("/^[234][\d]{9}$/", $cedula) == 1) {
-                    $tipoId = '02';
+                    $tipoId = "02";
                 } else {
-                    $tipoId = '04';
+                    $tipoId = "04";
                 }
                 //Conseguir el archivo XML recepcionado
-                $path = "$idEmpresa/" . "20" . substr($this->clave, 7, 2) . substr($this->clave, 5, 2) . '/';
+                $path =
+                    "$idEmpresa/" .
+                    "20" .
+                    substr($this->clave, 7, 2) .
+                    substr($this->clave, 5, 2) .
+                    "/";
                 $zip_name = "R{$this->clave}.zip";
                 $tipo_doc = substr($this->clave, 29, 2) - 1;
-                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
+                $tipo_doc = [
+                    "FE",
+                    "NDE",
+                    "NCE",
+                    "TE",
+                    "MR",
+                    "MR",
+                    "MR",
+                    "FEC",
+                    "FEE",
+                    "REP",
+                ][$tipo_doc];
                 $filename = "$tipo_doc{$this->clave}.xml";
 
-                $filesystem = $this->container['filesystem'];
-                $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+                $filesystem = $this->container->filesystem;
+                $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
                 try {
                     $contents = $filesystem->read("$path$zip_name");
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException|UnableToReadFile $exception) {
+                } catch (FilesystemException | UnableToReadFile $exception) {
                     throw new Exception("No se pudo leer el archivo $zip_name");
                 }
 
                 $zip = new ZipArchive();
                 if ($zip->open($tmpfile) !== true) {
-                    throw new Exception("Fallo al abrir $zip_name para enviar MR\n");
+                    throw new Exception(
+                        "Fallo al abrir $zip_name para enviar MR\n",
+                    );
                 }
 
                 if ($zip->locateName($filename) !== false) {
@@ -456,92 +524,110 @@ class Comprobante
                 } else {
                     $zip->close();
                     unlink($tmpfile);
-                    throw new Exceptions\XmlNotFoundException("No se halló el archivo xml en el archivo Zip $zip_name.");
+                    throw new Exceptions\XmlNotFoundException(
+                        "No se halló el archivo xml en el archivo Zip $zip_name.",
+                    );
                 }
                 unlink($tmpfile);
                 $zip->close();
 
-                $table = 'fe_recepciones';
+                $table = "fe_recepciones";
                 $accion = 2; //enviar recepcion
                 $post = [
-                    'clave' => $this->clave,
-                    'fecha' => $xmlData['FechaEmision'],
-                    'emisor' => [
-                        'tipoIdentificacion' => $xmlData['Emisor']['Identificacion']['Tipo'],
-                        'numeroIdentificacion' => $xmlData['Emisor']['Identificacion']['Numero']
+                    "clave" => $this->clave,
+                    "fecha" => $xmlData["FechaEmision"],
+                    "emisor" => [
+                        "tipoIdentificacion" =>
+                            $xmlData["Emisor"]["Identificacion"]["Tipo"],
+                        "numeroIdentificacion" =>
+                            $xmlData["Emisor"]["Identificacion"]["Numero"],
                     ],
-                    'receptor' => [
-                        'tipoIdentificacion' => $tipoId,
-                        'numeroIdentificacion' => $cedula
-                    ]
+                    "receptor" => [
+                        "tipoIdentificacion" => $tipoId,
+                        "numeroIdentificacion" => $cedula,
+                    ],
                 ];
             }
-            $callbackUrl = $this->container['callback_url'];
+            $callbackUrl = $this->container->callback_url;
             if ($callbackUrl) {
                 $callbackUrl .= "?token={$this->tipo}{$this->id_comprobante}";
-                $post['callbackUrl'] = $callbackUrl;
+                $post["callbackUrl"] = $callbackUrl;
             }
-            if ($this->tipo == 'R') {
-                $post['consecutivoReceptor'] = $datos['NumeroConsecutivoReceptor'];
+            if ($this->tipo == "R") {
+                $post["consecutivoReceptor"] =
+                    $datos["NumeroConsecutivoReceptor"];
             }
 
-            $post['comprobanteXml'] = base64_encode($this->xml);
+            $post["comprobanteXml"] = base64_encode($this->xml);
 
-            $sql  = "SELECT a.uri_api FROM fe_ambientes a
+            $sql = "SELECT a.uri_api FROM fe_ambientes a
             LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente
             WHERE e.id_empresa=$idEmpresa";
-            $uri = $this->container['db']->query($sql)->fetch_row()[0] . 'recepcion';
-            $client = new Client(
-                [
-                    'headers' => [
-                        'Authorization' => "bearer $token",
-                        'Content-type' => 'application/json'
-                    ]
-                ]
+            $uri =
+                $this->container->db->query($sql)->fetch_row()[0] . "recepcion";
+            $client = new Client([
+                "headers" => [
+                    "Authorization" => "bearer $token",
+                    "Content-type" => "application/json",
+                ],
+            ]);
+            $post = json_encode(
+                $post,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
             );
-            $post = json_encode($post, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             try {
-                $res = $client->post($uri, ['body' => $post]);
+                $res = $client->post($uri, ["body" => $post]);
                 $code = $res->getStatusCode();
                 if ($code == 201 || $code == 202) {
                     // Se envio correctamente
-                    $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_202);
+                    $rateLimiter->registerTransaction(
+                        $idEmpresa,
+                        RateLimiter::POST_202,
+                    );
                     $sql = "DELETE FROM fe_cola WHERE clave='{$this->clave}' AND accion=$accion";
-                    $this->container['db']->query($sql);
+                    $this->container->db->query($sql);
                     $sql = "UPDATE $table SET estado=2 WHERE clave='{$this->clave}'";
-                    $this->container['db']->query($sql);
+                    $this->container->db->query($sql);
                     $this->estado = 2; //enviado
-                    $this->container['log']->debug("{$this->tipo}{$this->clave} enviado. Respuesta $code");
+                    $this->container->logger->debug(
+                        "{$this->tipo}{$this->clave} enviado. Respuesta $code",
+                    );
                     return true;
                 }
             } catch (HttpException\ClientException $e) {
                 // a 400 level exception occured
                 $res = $e->getResponse();
                 $code = $res->getStatusCode();
-                $error = implode(', ', $res->getHeader('X-Error-Cause'));
-                if ($code == '401' || $code == '403') {
+                $error = implode(", ", $res->getHeader("X-Error-Cause"));
+                if ($code == "401" || $code == "403") {
                     //Token expirado o mal formado
-                    $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
-                    $this->container['log']->warning(
-                        "Respuesta $code al enviar {$this->tipo}{$this->clave}. Error: $error"
+                    $rateLimiter->registerTransaction(
+                        $idEmpresa,
+                        RateLimiter::POST_401_403,
+                    );
+                    $this->container->logger->warning(
+                        "Respuesta $code al enviar {$this->tipo}{$this->clave}. Error: $error",
                     );
                 } else {
                     //Error de estructura
-                    $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                    $this->container['log']->error(
-                        "Respuesta $code al enviar {$this->tipo}{$this->clave}. Error: $error"
+                    $rateLimiter->registerTransaction(
+                        $idEmpresa,
+                        RateLimiter::POST_40X,
+                    );
+                    $this->container->logger->error(
+                        "Respuesta $code al enviar {$this->tipo}{$this->clave}. Error: $error",
                     );
                 }
             } catch (HttpException\ServerException $e) {
                 // a 500 level exception occured
                 $code = $e->getResponse()->getStatusCode();
-                $this->container['log']->notice(
-                    "Respuesta $code al enviar {$this->tipo}{$this->clave}."
+                $this->container->logger->notice(
+                    "Respuesta $code al enviar {$this->tipo}{$this->clave}.",
                 );
             } catch (HttpException\ConnectException $e) {
                 // a connection problem
-                $this->container['log']->notice(
-                    "Error de conexion al enviar {$this->tipo}{$this->clave}."
+                $this->container->logger->notice(
+                    "Error de conexion al enviar {$this->tipo}{$this->clave}.",
                 );
             }
         }
@@ -564,77 +650,88 @@ class Comprobante
         }
 
         $idEmpresa = $this->id;
-        $rateLimiter = $this->container['rate_limiter'];
+        $rateLimiter = $this->container->rate_limiter;
         if ($rateLimiter->canPost($idEmpresa) == false) {
             //Limite exedido
             return false;
         }
 
         //Intentar conseguir un token de acceso
-        $token = (new Token($this->container, $idEmpresa))->getToken();
+        $token = new Token($this->container, $idEmpresa)->getToken();
         if (!$token) {
             //Fallo en conseguir token
             return false;
         }
 
-        if ($this->tipo == 'R') {
+        if ($this->tipo == "R") {
             $this->cargarDatosXml();
-            $consecutivo = $this->datos['NumeroConsecutivoReceptor'];
+            $consecutivo = $this->datos["NumeroConsecutivoReceptor"];
         } else {
             $consecutivo = false;
         }
 
         $clave = $this->clave;
 
-        $client = new Client(
-            ['headers' => ['Authorization' => "bearer $token"]]
-        );
-        $sql  = "SELECT a.uri_api FROM fe_ambientes a
+        $client = new Client([
+            "headers" => ["Authorization" => "bearer $token"],
+        ]);
+        $sql = "SELECT a.uri_api FROM fe_ambientes a
         LEFT JOIN fe_empresas e ON e.id_ambiente = a.id_ambiente
         WHERE e.id_empresa=$idEmpresa";
-        $uri = $this->container['db']->query($sql)->fetch_row()[0] . "recepcion/$clave";
+        $uri =
+            $this->container->db->query($sql)->fetch_row()[0] .
+            "recepcion/$clave";
         if ($consecutivo) {
             $uri .= "-$consecutivo";
         }
 
         try {
-            $res = $client->request('GET', $uri);
+            $res = $client->request("GET", $uri);
             if ($res->getStatusCode() == 200) {
                 $body = $res->getBody();
                 $token = "{$this->tipo}{$this->id_comprobante}";
 
                 $cuerpo = json_decode($body, true);
-                if (isset($cuerpo['respuesta-xml'])) {
+                if (isset($cuerpo["respuesta-xml"])) {
                     //llego el xml con el mensaje de respuesta
-                    $xml = base64_decode($cuerpo['respuesta-xml']);
-                    if ($this->tipo == 'C') {
+                    $xml = base64_decode($cuerpo["respuesta-xml"]);
+                    if ($this->tipo == "C") {
                         $datosXML = Comprobante::analizarXML($xml);
-                        $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+                        $estado = $datosXML["Mensaje"] == 1 ? 3 : 4;
                         $this->estado = $estado;
                         $this->enHacienda = true;
                     } else {
                         $this->guardarMensajeHacienda($xml);
                     }
-                } elseif (isset($cuerpo['ind-estado'])) {
+                } elseif (isset($cuerpo["ind-estado"])) {
                     //no esta la respuesta. coger el estado actual
-                    $ind_estado = strtolower($cuerpo['ind-estado']);
-                    if ($ind_estado == 'recibido' || $ind_estado == 'procesando') {
+                    $ind_estado = strtolower($cuerpo["ind-estado"]);
+                    if (
+                        $ind_estado == "recibido" ||
+                        $ind_estado == "procesando"
+                    ) {
                         $estado = 2;
-                    } elseif ($ind_estado == 'aceptado') {
+                    } elseif ($ind_estado == "aceptado") {
                         $estado = 3;
-                    } elseif ($ind_estado == 'rechazado') {
+                    } elseif ($ind_estado == "rechazado") {
                         $estado = 4;
-                    } elseif ($ind_estado == 'error') {
+                    } elseif ($ind_estado == "error") {
                         $estado = 5;
                         // Guardar el estado de error
-                        $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+                        $table =
+                            $this->tipo == "E"
+                                ? "fe_emisiones"
+                                : "fe_recepciones";
                         $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
-                        $stmt = $this->container['db']->prepare($sql);
+                        $stmt = $this->container->db->prepare($sql);
                         if ($stmt === false) {
-                            throw new Exception('Error al preparar la consulta para actualizar el estado del comprobante con clave ' . $clave);
+                            throw new Exception(
+                                "Error al preparar la consulta para actualizar el estado del comprobante con clave " .
+                                    $clave,
+                            );
                         }
-                        $mensaje = 'Error de Hacienda';
-                        $stmt->bind_param('iss', $estado, $mensaje, $clave);
+                        $mensaje = "Error de Hacienda";
+                        $stmt->bind_param("iss", $estado, $mensaje, $clave);
                         $stmt->execute();
                         $stmt->close();
                     } else {
@@ -654,34 +751,47 @@ class Comprobante
             // a 400 level exception occured
             $res = $e->getResponse();
             $code = $res->getStatusCode();
-            $error = implode(', ', $res->getHeader('X-Error-Cause'));
-            if ($code == '401' || $code == '403') {
+            $error = implode(", ", $res->getHeader("X-Error-Cause"));
+            if ($code == "401" || $code == "403") {
                 //Token expirado o mal formado
-                $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_401_403);
-                $this->container['log']->warning(
-                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                $rateLimiter->registerTransaction(
+                    $idEmpresa,
+                    RateLimiter::POST_401_403,
                 );
-            } elseif ($code == '400') {
+                $this->container->logger->warning(
+                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error",
+                );
+            } elseif ($code == "400") {
                 //No se encuentra
                 $this->enHacienda = false;
-                $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                $this->container['log']->error(
-                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                $rateLimiter->registerTransaction(
+                    $idEmpresa,
+                    RateLimiter::POST_40X,
+                );
+                $this->container->logger->error(
+                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error",
                 );
             } else {
                 //Error de estructura
-                $rateLimiter->registerTransaction($idEmpresa, RateLimiter::POST_40X);
-                $this->container['log']->error(
-                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error"
+                $rateLimiter->registerTransaction(
+                    $idEmpresa,
+                    RateLimiter::POST_40X,
+                );
+                $this->container->logger->error(
+                    "Respuesta $code al consultar estado de {$this->tipo}$clave. Error: $error",
                 );
             }
         } catch (HttpException\ServerException $e) {
             // a 500 level exception occured
             $code = $e->getResponse()->getStatusCode();
-            $this->container['log']->notice("Respuesta $code al consultar estado de {$this->tipo}$clave.");
+            $this->container->logger->notice(
+                "Respuesta $code al consultar estado de {$this->tipo}$clave.",
+            );
         } catch (HttpException\ConnectException $e) {
             // a connection problem
-            $this->container['log']->notice("Error de conexion al consultar estado de {$this->tipo}$clave.");
+            $this->container->logger->notice(
+                "Error de conexion al consultar estado de {$this->tipo}$clave.",
+            );
         }
         return false;
     }
@@ -709,27 +819,37 @@ class Comprobante
         $clave = $this->clave;
 
         //Guardar el archivo
-        $storage_path = "{$this->id}/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
+        $storage_path =
+            "{$this->id}/20" .
+            substr($clave, 7, 2) .
+            substr($clave, 5, 2) .
+            "/";
 
-        $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
+        $filename = $this->tipo == "E" ? "MH" : "MHMR";
         $filename .= "$clave.xml";
         $zip_name = "{$this->tipo}$clave.zip";
 
-        $filesystem = $this->container['filesystem'];
-        $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+        $filesystem = $this->container->filesystem;
+        $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
         try {
             $contents = $filesystem->read("$storage_path$zip_name");
             $result = file_put_contents($tmpfile, $contents);
             if ($result === false) {
-                throw new Exception("Error al guardar archivo $zip_name a la carpeta temporal");
+                throw new Exception(
+                    "Error al guardar archivo $zip_name a la carpeta temporal",
+                );
             }
-        } catch (FilesystemException|UnableToReadFile $exception) {
-            throw new XmlNotFoundException("No se pudo leer el archivo $zip_name: {$exception->getMessage()}");
+        } catch (FilesystemException | UnableToReadFile $exception) {
+            throw new XmlNotFoundException(
+                "No se pudo leer el archivo $zip_name: {$exception->getMessage()}",
+            );
         }
 
         $zip = new ZipArchive();
         if ($zip->open($tmpfile) !== true) {
-            throw new XmlNotFoundException("Fallo al abrir $zip_name abriendo xml de respuesta\n");
+            throw new XmlNotFoundException(
+                "Fallo al abrir $zip_name abriendo xml de respuesta\n",
+            );
         }
 
         $xml = false;
@@ -751,10 +871,10 @@ class Comprobante
     public function desactivarEnvios()
     {
         $clave = $this->clave;
-        $accion_actual = $this->tipo == 'E' ? 1 : 2;
+        $accion_actual = $this->tipo == "E" ? 1 : 2;
         $sql = "UPDATE fe_cola SET accion=accion + 2
         WHERE clave='$clave' AND accion=$accion_actual";
-        $this->container['db']->query($sql);
+        $this->container->db->query($sql);
     }
 
     /**
@@ -766,31 +886,31 @@ class Comprobante
     {
         // Coger intentos actuales
         $clave = $this->clave;
-        $accion = $this->tipo == 'E' ? 1 : 2;
+        $accion = $this->tipo == "E" ? 1 : 2;
         $sql = "SELECT intentos_envio FROM fe_cola WHERE clave='$clave' AND accion=$accion";
-        $result = $this->container['db']->query($sql);
+        $result = $this->container->db->query($sql);
         if ($result->num_rows == 0) {
             return;
         }
         $intentos = $result->fetch_row()[0];
         $plazo = 28800; // por defecto 8 hrs
         $plazos = [
-            300,   // 5min
-            900,   // 15min
-            2400,  // 40min
-            3600,  // 1hr
-            7200,  // 2hrs
-            14400  // 4hrs
+            300, // 5min
+            900, // 15min
+            2400, // 40min
+            3600, // 1hr
+            7200, // 2hrs
+            14400, // 4hrs
         ];
         if (isset($plazos[$intentos])) {
             $plazo = $plazos[$intentos];
         }
-        $siguiente = (new DateTime())->getTimestamp() + $plazo;
+        $siguiente = new DateTime()->getTimestamp() + $plazo;
         $intentos++;
         $accion_nueva = $intentos >= 12 ? $accion + 2 : $accion; // Despues de 12 intentos se desactiva
         $sql = "UPDATE fe_cola SET tiempo_enviar=$siguiente, intentos_envio=$intentos, accion=$accion_nueva
         WHERE clave='$clave' AND accion=$accion";
-        $this->container['db']->query($sql);
+        $this->container->db->query($sql);
     }
 
     /**
@@ -804,33 +924,43 @@ class Comprobante
     {
         if ($this->id) {
             $clave = $this->clave;
-            $filesystem = $this->container['filesystem'];
+            $filesystem = $this->container->filesystem;
 
             //Guardar el archivo
-            $storage_path = "{$this->id}/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
+            $storage_path =
+                "{$this->id}/20" .
+                substr($clave, 7, 2) .
+                substr($clave, 5, 2) .
+                "/";
 
-            $filename = $this->tipo == 'E' ? 'MH' : 'MHMR';
+            $filename = $this->tipo == "E" ? "MH" : "MHMR";
             $filename .= "$clave.xml";
             $zip_name = "{$this->tipo}$clave.zip";
 
             $zip = new ZipArchive();
-            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+            $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
 
             if ($filesystem->fileExists($storage_path . $zip_name)) {
                 //Abrimos el existente y le añadimos los archivos
                 try {
                     $contents = $filesystem->read($storage_path . $zip_name);
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException|UnableToReadFile $exception) {
-                    throw new Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                } catch (FilesystemException | UnableToReadFile $exception) {
+                    throw new Exception(
+                        "No se pudo abrir el archivo zip para el documento $filename.",
+                    );
                 }
                 if ($zip->open($tmpfile) !== true) {
-                    throw new Exception("Fallo al abrir <$zip_name> guardando MR\n");
+                    throw new Exception(
+                        "Fallo al abrir <$zip_name> guardando MR\n",
+                    );
                 }
             } else {
                 //Creamos uno nuevo
                 if ($zip->open($tmpfile, ZipArchive::CREATE) !== true) {
-                    throw new Exception("Fallo al abrir <$zip_name> guardando MR\n");
+                    throw new Exception(
+                        "Fallo al abrir <$zip_name> guardando MR\n",
+                    );
                 }
             }
 
@@ -840,23 +970,28 @@ class Comprobante
             unlink($tmpfile);
             try {
                 $filesystem->write("$storage_path$zip_name", $contents);
-            } catch (FilesystemException|UnableToWriteFile $exception) {
-                throw new Exception("Fallo al guardar el archivo <$zip_name>\n");
+            } catch (FilesystemException | UnableToWriteFile $exception) {
+                throw new Exception(
+                    "Fallo al guardar el archivo <$zip_name>\n",
+                );
             }
 
             //Guardar el estado
             $datosXML = Comprobante::analizarXML($xml);
-            $mensaje = $datosXML['DetalleMensaje'];
-            $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+            $mensaje = $datosXML["DetalleMensaje"];
+            $estado = $datosXML["Mensaje"] == 1 ? 3 : 4;
             $this->estado = $estado;
 
-            $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+            $table = $this->tipo == "E" ? "fe_emisiones" : "fe_recepciones";
             $sql = "UPDATE $table SET estado=?, mensaje=? WHERE clave=?";
-            $stmt = $this->container['db']->prepare($sql);
+            $stmt = $this->container->db->prepare($sql);
             if ($stmt === false) {
-                throw new Exception('Error al preparar la consulta para actualizar el estado del comprobante con clave ' . $clave);
+                throw new Exception(
+                    "Error al preparar la consulta para actualizar el estado del comprobante con clave " .
+                        $clave,
+                );
             }
-            $stmt->bind_param('iss', $estado, $mensaje, $clave);
+            $stmt->bind_param("iss", $estado, $mensaje, $clave);
             $res = $stmt->execute();
             $stmt->close();
             return $res;
@@ -871,13 +1006,16 @@ class Comprobante
      */
     public function cogerDetalleMensaje()
     {
-        $table = $this->tipo == 'E' ? 'fe_emisiones' : 'fe_recepciones';
+        $table = $this->tipo == "E" ? "fe_emisiones" : "fe_recepciones";
         $sql = "SELECT mensaje FROM $table WHERE clave=? AND id_empresa=?";
-        $stmt = $this->container['db']->prepare($sql);
+        $stmt = $this->container->db->prepare($sql);
         if ($stmt === false) {
-            throw new Exception('Error al preparar la consulta para obtener el mensaje del comprobante con clave ' . $this->clave);
+            throw new Exception(
+                "Error al preparar la consulta para obtener el mensaje del comprobante con clave " .
+                    $this->clave,
+            );
         }
-        $stmt->bind_param('si', $this->clave, $this->id);
+        $stmt->bind_param("si", $this->clave, $this->id);
         $stmt->execute();
         $res = $stmt->get_result()->fetch_row()[0];
         $stmt->close();
@@ -893,27 +1031,26 @@ class Comprobante
      */
     public static function analizarXML($xml)
     {
-
         if ($xml == false) {
             //No enviaron nada, entonces solo daria error
             return [];
         }
         //Eliminar la firma
-        $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", '', $xml);
-        $encoding = mb_detect_encoding($xml, 'UTF-8, ISO-8859-1', true);
-        if ($encoding != 'UTF-8') {
+        $xml = preg_replace("/.ds:Signature[\s\S]*ds:Signature./m", "", $xml);
+        $encoding = mb_detect_encoding($xml, "UTF-8, ISO-8859-1", true);
+        if ($encoding != "UTF-8") {
             //Lo codificamos de ISO-8859-1 a UTF-8
             //para poder leer xmls generados incorrectamente
-            $xml = utf8_encode($xml);
+            $xml = mb_convert_encoding($xml, "UTF-8", "ISO-8859-1");
         }
         //Coger el elemento root del comprobante
-        preg_match('/\<(\w+)\s+x/', $xml, $results);
-        $root = $results[1] ?? '';
+        preg_match("/\<(\w+)\s+x/", $xml, $results);
+        $root = $results[1] ?? "";
 
         //Coger el namespace del comprobante
         preg_match('/xmlns="([^"]+)"/', $xml, $results);
         $ns = $results[1];
-        $xmlns = '{' . $ns . '}';
+        $xmlns = "{" . $ns . "}";
         $service = new Service();
         $f_repeatKeyValue = function (\Sabre\Xml\Reader $reader) use ($ns) {
             return XmlReader::repeatKeyValue($reader, $ns);
@@ -922,7 +1059,10 @@ class Comprobante
             return \Sabre\Xml\Deserializer\keyValue($reader, $ns);
         };
         $f_detalleServicio = function (\Sabre\Xml\Reader $reader) use ($xmlns) {
-            return \Sabre\Xml\Deserializer\repeatingElements($reader, "{$xmlns}LineaDetalle");
+            return \Sabre\Xml\Deserializer\repeatingElements(
+                $reader,
+                "{$xmlns}LineaDetalle",
+            );
         };
         $f_codigoParser = function (\Sabre\Xml\Reader $reader) use ($ns) {
             return XmlReader::codigoParser($reader, $ns);
@@ -932,7 +1072,7 @@ class Comprobante
             "$xmlns$root" => $f_repeatKeyValue,
             "{$xmlns}Emisor" => $f_keyValue,
             "{$xmlns}Receptor" => $f_keyValue,
-            "{$xmlns}Identificacion"  => $f_keyValue,
+            "{$xmlns}Identificacion" => $f_keyValue,
             "{$xmlns}Ubicacion" => $f_keyValue,
             "{$xmlns}Telefono" => $f_keyValue,
             "{$xmlns}Fax" => $f_keyValue,
@@ -948,16 +1088,16 @@ class Comprobante
             "{$xmlns}CodigoTipoMoneda" => $f_keyValue,
             "{$xmlns}Otros" => $f_keyValue,
             "{$xmlns}InformacionReferencia" => $f_repeatKeyValue,
-            "{$xmlns}OtroContenido" => $f_keyValue
+            "{$xmlns}OtroContenido" => $f_keyValue,
         ];
-        if (stripos($xmlns, 'v4.2') > 0) {
+        if (stripos($xmlns, "v4.2") > 0) {
             //Comprobante viejo
             $elementMap["{$xmlns}Codigo"] = $f_codigoParser;
         }
-        if (stripos($xmlns, 'v4.4') > 0) {
-            //Comprobante viejo
+        if (stripos($xmlns, "v4.4") > 0) {
             $elementMap["{$xmlns}TotalDesgloseImpuesto"] = $f_repeatKeyValue;
             $elementMap["{$xmlns}MedioPago"] = $f_repeatKeyValue;
+            $elementMap["{$xmlns}DatosImpuestoEspecifico"] = $f_keyValue;
         }
         $service->elementMap = $elementMap;
         return $service->parse($xml);

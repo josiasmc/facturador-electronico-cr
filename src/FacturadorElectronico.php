@@ -6,11 +6,9 @@
  * Este componente suple una interfaz para la integración de facturación
  * electrónica con el Ministerio de Hacienda en Costa Rica
  *
- * PHP version 7.4
- *
  * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -33,7 +31,7 @@ use League\Flysystem\{FilesystemException, UnableToReadFile, UnableToWriteFile};
  */
 class FacturadorElectronico
 {
-    protected $container;
+    protected Container $container;
 
     /**
      * Invoicer constructor
@@ -44,47 +42,59 @@ class FacturadorElectronico
     public function __construct($db, $settings = [])
     {
         // Ajustes predeterminados
-        $container = array_merge([
-            'crypto_key' => '',       // Llave para utilizar en encriptado de datos en la BD
-            'client_id' => 0,         // ID de empresa
-            'storage_path' => '',     // Ruta para guardar los comprobantes
-            'callback_url' => '',     // URL para Hacienda enviar las respuestas
-            'storage_type' => 'local', // Lugar en que se guardan los comprobantes. 'local' | 's3',
-            's3_client_options' => [], // Opciones para el cliente de S3
-        ], $settings);
+        $container = Container::fromArray(
+            array_merge(
+                [
+                    "crypto_key" => "", // Llave para utilizar en encriptado de datos en la BD
+                    "client_id" => 0, // ID de empresa
+                    "storage_path" => "", // Ruta para guardar los comprobantes
+                    "callback_url" => "", // URL para Hacienda enviar las respuestas
+                    "storage_type" => "local", // Lugar en que se guardan los comprobantes. 'local' | 's3',
+                    "s3_client_options" => [], // Opciones para el cliente de S3
+                ],
+                $settings,
+            ),
+        );
 
-        $crypto_key = $container['crypto_key'];
-        $container['crypto_key'] = $crypto_key ? Key::loadFromAsciiSafeString($crypto_key) : '';
-        $container['db'] = $db;
+        $crypto_key = $container->crypto_key;
+        $container->crypto_key = $crypto_key
+            ? Key::loadFromAsciiSafeString($crypto_key)
+            : "";
+        $container->db = $db;
 
         // Inicializar el logger
-        $loglevel = Logger::INFO;
-        $log = new Logger('facturador');
-        $log->pushHandler(new MySqlLogger($db, $loglevel));
-        $container['log'] = $log;
-        $container['rate_limiter'] = new RateLimiter($container);
+        $loglevel = \Monolog\Level::Info;
+        $logger = new Logger("facturador");
+        $logger->pushHandler(new MySqlLogger($db, $loglevel));
+        $container->logger = $logger;
+        $container->rate_limiter = new RateLimiter($db);
 
         // Crear la conexion al sistema de archivos
-        if ($container['storage_type'] == 'local') {
-            $storage_path = $container['storage_path'];
-            if ($storage_path == '') {
-                throw new Exception('Especifique la ruta de almacenaje para guardar comprobantes.');
+        if ($container->storage_type == "local") {
+            $storage_path = $container->storage_path;
+            if ($storage_path == "") {
+                throw new Exception(
+                    "Especifique la ruta de almacenaje para guardar comprobantes.",
+                );
             }
-            $adapter = new LocalFilesystemAdapter($container['storage_path']);
-        } elseif ($container['storage_type'] == 's3') {
-            if (!is_array($container['s3_client_options'])) {
-                throw new Exception('Error al conectarse al almacenaje S3. No se suministraron las opciones de la conexión.');
+            $adapter = new LocalFilesystemAdapter($container->storage_path);
+        } elseif ($container->storage_type == "s3") {
+            if (!is_array($container->s3_storage_options)) {
+                throw new Exception(
+                    "Error al conectarse al almacenaje S3. No se suministraron las opciones de la conexión.",
+                );
             }
-            $s3ClientOptions = $container['s3_client_options'];
-            $s3ClientOptions['suppress_php_deprecation_warning'] = true;
+            $s3ClientOptions = $container->s3_storage_options;
             $client = new S3Client($s3ClientOptions);
-            if (!isset($container['s3_bucket_name'])) {
-                throw new Exception('Error al conectarse al almacenaje S3. No se especificó el nombre del bucket.');
+            if (!isset($container->s3_bucket_name)) {
+                throw new Exception(
+                    "Error al conectarse al almacenaje S3. No se especificó el nombre del bucket.",
+                );
             }
-            $adapter = new AwsS3V3Adapter($client, $container['s3_bucket_name']);
+            $adapter = new AwsS3V3Adapter($client, $container->s3_bucket_name);
         }
         $filesystem = new \League\Flysystem\Filesystem($adapter);
-        $container['filesystem'] = $filesystem;
+        $container->filesystem = $filesystem;
 
         $this->container = $container;
     }
@@ -96,7 +106,7 @@ class FacturadorElectronico
      */
     public function setClientId($id)
     {
-        $this->container['client_id'] = $id;
+        $this->container->client_id = $id;
     }
 
     /**
@@ -121,12 +131,18 @@ class FacturadorElectronico
     public function guardarEmpresa($datos, $id = 0)
     {
         $empresas = new Empresas($this->container);
-        $log = $this->container['log'];
+        $log = $this->container->logger;
         if ($id === 0) {
-            $log->notice('Creando empresa nueva para el cliente con ID ' . $this->container['client_id']);
+            $log->notice(
+                "Creando empresa nueva para el cliente con ID " .
+                    $this->container->client_id,
+            );
             return $empresas->add($datos);
         } else {
-            $log->info("Modificando empresa $id para el cliente con ID " . $this->container['client_id']);
+            $log->info(
+                "Modificando empresa $id para el cliente con ID " .
+                    $this->container->client_id,
+            );
             return $empresas->modify($id, $datos);
         }
     }
@@ -191,7 +207,12 @@ class FacturadorElectronico
      */
     public function enviarComprobante($datos, $id, $sinInternet = false)
     {
-        $comprobante = new Comprobante($this->container, $datos, $id, $sinInternet);
+        $comprobante = new Comprobante(
+            $this->container,
+            $datos,
+            $id,
+            $sinInternet,
+        );
         if ($comprobante->guardarEnCola()) {
             return $comprobante->clave;
         }
@@ -206,38 +227,42 @@ class FacturadorElectronico
      *
      * @return array Estado del comprobante enviado
      */
-    public function procesarCallbackHacienda($cuerpo, $token = '')
+    public function procesarCallbackHacienda($cuerpo, $token = "")
     {
-        $log = $this->container['log'];
+        $log = $this->container->logger;
         $cuerpo = json_decode($cuerpo, true);
-        $ind_estado = strtolower($cuerpo['ind-estado']);
-        if ($ind_estado == 'recibido' || $ind_estado == 'procesando') {
-            $ind_estado = 'enviado';
+        $ind_estado = strtolower($cuerpo["ind-estado"]);
+        if ($ind_estado == "recibido" || $ind_estado == "procesando") {
+            $ind_estado = "enviado";
         }
-        $clave = substr($cuerpo['clave'], 0, 50);
-        if ($token === '') {
-            if (isset($_REQUEST['token'])) {
+        $clave = substr($cuerpo["clave"], 0, 50);
+        if ($token === "") {
+            if (isset($_REQUEST["token"])) {
                 //Conseguir el token del POST
-                $token = $_REQUEST['token'];
+                $token = $_REQUEST["token"];
             } else {
-                $log->error("Error al procesar callback de Hacienda para la clave $clave. No hay token de identificacion.");
-                throw new Exception("No existe token para procesar el mensaje de Hacienda para la clave $clave");
+                $log->error(
+                    "Error al procesar callback de Hacienda para la clave $clave. No hay token de identificacion.",
+                );
+                throw new Exception(
+                    "No existe token para procesar el mensaje de Hacienda para la clave $clave",
+                );
             }
         }
-        $db = $this->container['db'];
+        $db = $this->container->db;
 
         //Verificar la validez del token
         $tipo = strtoupper(substr($token, 0, 1));
-        if ($tipo == 'E') {
+        if ($tipo == "E") {
             //Emision
             $valido = true;
-            $tabla = 'fe_emisiones';
-            $col = 'id_emision';
-        } elseif ($tipo == 'R') {
+            $tabla = "fe_emisiones";
+            $col = "id_emision";
+        } elseif ($tipo == "R") {
             //Recepcion
             $valido = true;
-            $tabla = 'fe_recepciones';
-            $col = 'id_recepcion';
+            $tabla = "fe_recepciones";
+            $col = "id_recepcion";
         } else {
             $valido = false;
         }
@@ -247,10 +272,13 @@ class FacturadorElectronico
             $sql = "SELECT id_empresa, COUNT(*) FROM $tabla WHERE $col=? AND clave=?";
             $stmt = $db->prepare($sql);
             if ($stmt === false) {
-                throw new Exception('Error al preparar la consulta para validar el id de la emisión o recepción con clave ' . $clave);
+                throw new Exception(
+                    "Error al preparar la consulta para validar el id de la emisión o recepción con clave " .
+                        $clave,
+                );
             }
             $token = substr($token, 1);
-            $stmt->bind_param('is', $token, $clave);
+            $stmt->bind_param("is", $token, $clave);
             $stmt->execute();
             $r = $stmt->get_result()->fetch_row();
             $stmt->close();
@@ -259,34 +287,44 @@ class FacturadorElectronico
         }
 
         if (!$valido) {
-            $log->error("Error al procesar callback de Hacienda para la clave $tipo$clave. Token invalido.");
-            throw new Exception("Token invalido al procesar callback de Hacienda para la clave $tipo$clave");
+            $log->error(
+                "Error al procesar callback de Hacienda para la clave $tipo$clave. Token invalido.",
+            );
+            throw new Exception(
+                "Token invalido al procesar callback de Hacienda para la clave $tipo$clave",
+            );
         }
 
         $datos = [
-            'clave' => $clave,
-            'tipo' => $tipo,
+            "clave" => $clave,
+            "tipo" => $tipo,
         ];
 
-        if (isset($cuerpo['respuesta-xml'])) {
-            $log->debug("Guardando mensaje de respuesta de Hacienda. Clave: $tipo$clave");
-            $xml = base64_decode($cuerpo['respuesta-xml']);
-            $comprobante = new Comprobante($this->container, $datos, $id_empresa);
+        if (isset($cuerpo["respuesta-xml"])) {
+            $log->debug(
+                "Guardando mensaje de respuesta de Hacienda. Clave: $tipo$clave",
+            );
+            $xml = base64_decode($cuerpo["respuesta-xml"]);
+            $comprobante = new Comprobante(
+                $this->container,
+                $datos,
+                $id_empresa,
+            );
             $comprobante->guardarMensajeHacienda($xml);
             return [
-                'clave' => $clave,
-                'tipo' => $tipo,
-                'estado' => $ind_estado,
-                'mensaje' => $comprobante->cogerDetalleMensaje(),
-                'xml' => $xml //XML de respuesta de hacienda
+                "clave" => $clave,
+                "tipo" => $tipo,
+                "estado" => $ind_estado,
+                "mensaje" => $comprobante->cogerDetalleMensaje(),
+                "xml" => $xml, //XML de respuesta de hacienda
             ];
         } else {
             return [
-                'clave' => $clave,
-                'tipo' => $tipo,
-                'estado' => $ind_estado,
-                'mensaje' => '',
-                'xml' => '',
+                "clave" => $clave,
+                "tipo" => $tipo,
+                "estado" => $ind_estado,
+                "mensaje" => "",
+                "xml" => "",
             ];
         }
     }
@@ -304,79 +342,114 @@ class FacturadorElectronico
     {
         //Guardar el XML recepcionado si se envia
         if ($xml) {
-            $clave = $datos['Clave'];
-            $filesystem = $this->container['filesystem'];
-            $path = "$id_empresa/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
+            $clave = $datos["Clave"];
+            $filesystem = $this->container->filesystem;
+            $path =
+                "$id_empresa/20" .
+                substr($clave, 7, 2) .
+                substr($clave, 5, 2) .
+                "/";
             $tipo_doc = substr($clave, 29, 2) - 1;
-            $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
+            $tipo_doc = [
+                "FE",
+                "NDE",
+                "NCE",
+                "TE",
+                "MR",
+                "MR",
+                "MR",
+                "FEC",
+                "FEE",
+                "REP",
+            ][$tipo_doc];
             $filename = "$tipo_doc$clave.xml";
             $zip_name = "R$clave.zip";
 
             $zip = new \ZipArchive();
-            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+            $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
             if ($filesystem->fileExists("$path$zip_name")) {
                 //Abrimos el existente y le añadimos los archivos
                 try {
                     $contents = $filesystem->read($path . $zip_name);
                     file_put_contents($tmpfile, $contents);
-                } catch (FilesystemException|UnableToReadFile $exception) {
-                    throw new Exception("No se pudo abrir el archivo zip para el documento $filename.");
+                } catch (FilesystemException | UnableToReadFile $_) {
+                    throw new Exception(
+                        "No se pudo abrir el archivo zip para el documento $filename.",
+                    );
                 }
                 if ($zip->open($tmpfile) !== true) {
-                    throw new Exception("Fallo al crear un archivo temporal para {$zip_name}\n");
+                    throw new Exception(
+                        "Fallo al crear un archivo temporal para {$zip_name}\n",
+                    );
                 }
             } else {
                 //Creamos uno nuevo
                 if ($zip->open($tmpfile, \ZipArchive::CREATE) !== true) {
-                    throw new Exception("Fallo al crear un archivo temporal para {$zip_name}\n");
+                    throw new Exception(
+                        "Fallo al crear un archivo temporal para {$zip_name}\n",
+                    );
                 }
             }
             if ($zip->addFromString($filename, $xml) === false) {
-                throw new Exception("Fallo al escribir documento xml al archivo Zip $zip_name\n");
+                throw new Exception(
+                    "Fallo al escribir documento xml al archivo Zip $zip_name\n",
+                );
             }
             if ($zip->close() === false) {
-                throw new Exception("Fallo al cerrar el archivo Zip $zip_name\n");
+                throw new Exception(
+                    "Fallo al cerrar el archivo Zip $zip_name\n",
+                );
             }
             $contents = file_get_contents($tmpfile);
             if ($contents === false) {
-                throw new Exception("Fallo al leer el archivo temporal $zip_name\n");
+                throw new Exception(
+                    "Fallo al leer el archivo temporal $zip_name\n",
+                );
             }
             unlink($tmpfile);
             try {
                 $filesystem->write("$path$zip_name", $contents);
-            } catch (FilesystemException|UnableToWriteFile $exception) {
+            } catch (FilesystemException | UnableToWriteFile $_) {
                 throw new Exception("Fallo al guardar el archivo $zip_name\n");
             }
         }
 
         //Verificar el estado del documento que se esta recepcionando
         $error = false;
-        if ($xml = $this->cogerXml($datos['Clave'], 'R', 2, $id_empresa)) {
+        if ($xml = $this->cogerXml($datos["Clave"], "R", 2, $id_empresa)) {
             //Xml de respuesta se encuentra disponible
             $datosXML = Comprobante::analizarXML($xml);
-            $estado = $datosXML['Mensaje'] == 1 ? 3 : 4;
+            $estado = $datosXML["Mensaje"] == 1 ? 3 : 4;
             if ($estado != 3) {
-                $error = "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
+                $error =
+                    "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
             }
         } else {
             //Consultar el estado en Hacienda
             $o_datos = [
-                'clave' => $datos['Clave'],
-                'tipo' => 'C',
+                "clave" => $datos["Clave"],
+                "tipo" => "C",
             ];
-            $c_original = new Comprobante($this->container, $o_datos, $id_empresa);
+            $c_original = new Comprobante(
+                $this->container,
+                $o_datos,
+                $id_empresa,
+            );
             $c_original->consultarEstado();
             if ($c_original->estado != 3) {
                 //No esta aceptado
                 if ($c_original->estado == 4) {
                     //Rechazado
-                    $error = "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
+                    $error =
+                        "El documento que se está intentando recepcionar se encuentra rechazado por Hacienda.";
                 } elseif ($c_original->enHacienda === false) {
                     //No se encuentra en Hacienda
-                    $error = "El documento que se está intentando recepcionar no se encuentra en Hacienda. Intente más tarde.";
+                    $error =
+                        "El documento que se está intentando recepcionar no se encuentra en Hacienda. Intente más tarde.";
                 } else {
                     //Ocurrio un error al consultar estado
-                    $error = "Ocurrió un error al consultar el estado del documento que se está intentando recepcionar. Intente más tarde.";
+                    $error =
+                        "Ocurrió un error al consultar el estado del documento que se está intentando recepcionar. Intente más tarde.";
                 }
             }
         }
@@ -402,13 +475,13 @@ class FacturadorElectronico
     public function consultarEstado($clave, $tipo, $id_empresa)
     {
         $datos = [
-            'clave' => $clave,
-            'tipo' => $tipo,
+            "clave" => $clave,
+            "tipo" => $tipo,
         ];
         $comprobante = new Comprobante($this->container, $datos, $id_empresa);
         $estado = $comprobante->estado;
 
-        $xml = '';
+        $xml = "";
         if ($estado > 2 && $estado < 5) {
             // ya tenemos la respuesta de Hacienda en la base de datos
             $xml = $comprobante->cogerXmlRespuesta();
@@ -425,15 +498,24 @@ class FacturadorElectronico
             $comprobante->enviar();
             $estado = $comprobante->estado;
         }
-        $estado_texto = ['pendiente', 'pendiente', 'enviado', 'aceptado', 'rechazado', 'error'][$estado];
+        $estado_texto = [
+            "pendiente",
+            "pendiente",
+            "enviado",
+            "aceptado",
+            "rechazado",
+            "error",
+        ][$estado];
         if ($xml === false) {
-            throw new XmlNotFoundException("Consultando estado para el doc $clave con estado $estado_texto dio un error de XML de respuesta no disponible.");
+            throw new XmlNotFoundException(
+                "Consultando estado para el doc $clave con estado $estado_texto dio un error de XML de respuesta no disponible.",
+            );
         }
         return [
-            'clave' => $clave,
-            'estado' => $estado_texto,
-            'mensaje' => $comprobante->cogerDetalleMensaje(),
-            'xml' => $xml //xml de respuesta de Hacienda
+            "clave" => $clave,
+            "estado" => $estado_texto,
+            "mensaje" => $comprobante->cogerDetalleMensaje(),
+            "xml" => $xml, //xml de respuesta de Hacienda
         ];
     }
 
@@ -450,56 +532,70 @@ class FacturadorElectronico
     public function cogerXml($clave, $lugar, $tipo, $id)
     {
         //Revisar si concuerda clave con empresa
-        $db = $this->container['db'];
-        if ($lugar == 'E') {
+        $db = $this->container->db;
+        if ($lugar == "E") {
             //Emision
-            $tabla = 'fe_emisiones';
-        } elseif ($lugar == 'R') {
+            $tabla = "fe_emisiones";
+        } elseif ($lugar == "R") {
             //Recepcion
-            $tabla = 'fe_recepciones';
+            $tabla = "fe_recepciones";
         } else {
             return false;
         }
         $sql = "SELECT estado FROM $tabla WHERE clave=$clave AND id_empresa=$id";
         $res = $db->query($sql);
-        if ($res->num_rows > 0 || ($tipo < 3 && $lugar == 'R')) {
-            if ($lugar == 'E' || ($tipo > 2 && $lugar == 'R')) {
+        if ($res->num_rows > 0 || ($tipo < 3 && $lugar == "R")) {
+            if ($lugar == "E" || ($tipo > 2 && $lugar == "R")) {
                 $estado = $res->fetch_row()[0];
-                if (($tipo == 2 && $estado < 3 && $lugar == 'E')) {
+                if ($tipo == 2 && $estado < 3 && $lugar == "E") {
                     //No existe respuesta para emision
                     return false;
-                } elseif (($tipo == 4 && $estado < 3 && $lugar == 'R')) {
+                } elseif ($tipo == 4 && $estado < 3 && $lugar == "R") {
                     //No existe respuesta para recepcion
                     return false;
                 }
             }
 
             //Conseguir el archivo
-            $storage_path = "$id/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . '/';
+            $storage_path =
+                "$id/20" . substr($clave, 7, 2) . substr($clave, 5, 2) . "/";
 
-            $zip_name = $lugar . $clave . '.zip';
+            $zip_name = $lugar . $clave . ".zip";
             if ($tipo == 2) {
-                $tipo_doc = 'MH';
+                $tipo_doc = "MH";
             } elseif ($tipo == 4) {
-                $tipo_doc = 'MHMR';
+                $tipo_doc = "MHMR";
             } else {
                 $tipo_doc = substr($clave, 29, 2) - 1;
-                $tipo_doc = ['FE', 'NDE', 'NCE', 'TE', 'MR', 'MR', 'MR', 'FEC', 'FEE', 'REP'][$tipo_doc];
+                $tipo_doc = [
+                    "FE",
+                    "NDE",
+                    "NCE",
+                    "TE",
+                    "MR",
+                    "MR",
+                    "MR",
+                    "FEC",
+                    "FEE",
+                    "REP",
+                ][$tipo_doc];
             }
-            $filename = $tipo_doc . $clave . '.xml';
+            $filename = $tipo_doc . $clave . ".xml";
 
-            $filesystem = $this->container['filesystem'];
-            $tmpfile = sys_get_temp_dir() . '/' . $zip_name;
+            $filesystem = $this->container->filesystem;
+            $tmpfile = sys_get_temp_dir() . "/" . $zip_name;
             try {
                 $contents = $filesystem->read($storage_path . $zip_name);
                 file_put_contents($tmpfile, $contents);
-            } catch (FilesystemException|UnableToReadFile $exception) {
+            } catch (FilesystemException | UnableToReadFile $_) {
                 throw new Exception("No se pudo leer el archivo <{$zip_name}>");
             }
 
             $zip = new \ZipArchive();
             if ($zip->open($tmpfile) !== true) {
-                throw new Exception("Fallo al abrir <{$zip_name}> abriendo xml\n");
+                throw new Exception(
+                    "Fallo al abrir <{$zip_name}> abriendo xml\n",
+                );
             }
 
             if ($zip->locateName($filename) !== false) {
@@ -528,20 +624,20 @@ class FacturadorElectronico
      */
     public function cogerMsg($clave, $tipo)
     {
-        if ($tipo == 'E') {
+        if ($tipo == "E") {
             //Emision
-            $tabla = 'fe_emisiones';
-        } elseif ($tipo == 'R') {
+            $tabla = "fe_emisiones";
+        } elseif ($tipo == "R") {
             //Recepcion
-            $tabla = 'fe_recepciones';
+            $tabla = "fe_recepciones";
         } else {
             return false;
         }
-        $db = $this->container['db'];
+        $db = $this->container->db;
         $sql = "SELECT mensaje
         FROM $tabla
         WHERE clave='$clave'";
-        $msg = $db->query($sql)->fetch_assoc()['mensaje'];
+        $msg = $db->query($sql)->fetch_assoc()["mensaje"];
         return $msg;
     }
 
@@ -555,9 +651,9 @@ class FacturadorElectronico
      */
     public function enviarCola($timeout = 0)
     {
-        $db = $this->container['db'];
-        $log = $this->container['log'];
-        $timestamp = (new DateTime())->getTimestamp(); //tiempo actual
+        $db = $this->container->db;
+        $log = $this->container->logger;
+        $timestamp = new DateTime()->getTimestamp(); //tiempo actual
         $enviados = [];
 
         // Prioridad de envio para los documentos mas recientes
@@ -567,24 +663,34 @@ class FacturadorElectronico
         $res = $db->query($sql);
         while ($row = $res->fetch_assoc()) {
             // Ver si hemos pasado el tiempo limite
-            if ($timeout > 0 && (new DateTime())->getTimestamp() - $timestamp > $timeout) {
+            if (
+                $timeout > 0 &&
+                new DateTime()->getTimestamp() - $timestamp > $timeout
+            ) {
                 break;
             }
 
-            $clave = $row['clave'];
-            $accion = $row['accion'];
+            $clave = $row["clave"];
+            $accion = $row["accion"];
             $datos = [
-                'clave' => $clave,
-                'tipo' => $accion == 1 ? 'E' : 'R'
+                "clave" => $clave,
+                "tipo" => $accion == 1 ? "E" : "R",
             ];
-            $comprobante = new Comprobante($this->container, $datos, $row['id_empresa']);
+            $comprobante = new Comprobante(
+                $this->container,
+                $datos,
+                $row["id_empresa"],
+            );
             try {
-                if ($row['intentos_envio'] > 0 && $comprobante->consultarEstado()) {
+                if (
+                    $row["intentos_envio"] > 0 &&
+                    $comprobante->consultarEstado()
+                ) {
                     // Se logro consultar estado, entonces ya está en Hacienda
                     $enviados[] = [
-                        'clave' => $clave,
-                        'tipo' => $accion == 1 ? 'E' : 'R',
-                        'estado' => $comprobante->estado,
+                        "clave" => $clave,
+                        "tipo" => $accion == 1 ? "E" : "R",
+                        "estado" => $comprobante->estado,
                     ];
                     // Eliminarlo de la cola
                     $sql = "DELETE FROM fe_cola WHERE clave='$clave' AND accion='$accion'";
@@ -593,9 +699,9 @@ class FacturadorElectronico
                 }
                 if ($comprobante->enviar()) {
                     $enviados[] = [
-                        'clave' => $clave,
-                        'tipo' => $accion == 1 ? 'E' : 'R',
-                        'estado' => 2,
+                        "clave" => $clave,
+                        "tipo" => $accion == 1 ? "E" : "R",
+                        "estado" => 2,
                     ];
                 }
             } catch (Exception $e) {

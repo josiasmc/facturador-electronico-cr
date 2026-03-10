@@ -3,11 +3,9 @@
 /**
  * Clase para serializar los comprobantes
  *
- * PHP version 7.4
- *
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -41,7 +39,6 @@ class XmlWriter extends \Sabre\Xml\Writer
         }
     }
 
-
     /**
      * Esta funcion serializa el array a los nodos del xml
      *
@@ -53,15 +50,17 @@ class XmlWriter extends \Sabre\Xml\Writer
     {
         if (is_scalar($value)) {
             // String, integer, float, boolean
-            $this->text((string)$value);
+            $this->text((string) $value);
         } elseif ($value === null) {
             // nothing!
-        } elseif (is_array($value) && array_key_exists('name', $value)) {
+        } elseif (is_array($value) && array_key_exists("name", $value)) {
             // if the array had a 'name' element, we assume that this array
             // describes a 'name' and optionally 'attributes' and 'value'.
-            $name = $value['name'];
-            $attributes = isset($value['attributes']) ? $value['attributes'] : [];
-            $value = isset($value['value']) ? $value['value'] : null;
+            $name = $value["name"];
+            $attributes = isset($value["attributes"])
+                ? $value["attributes"]
+                : [];
+            $value = isset($value["value"]) ? $value["value"] : null;
 
             $this->startElement($name);
             $this->writeAttributes($attributes);
@@ -69,18 +68,24 @@ class XmlWriter extends \Sabre\Xml\Writer
             $this->endElement();
         } elseif (is_array($value)) {
             foreach ($value as $name => $item) {
-                if (is_string($name) && is_array($item) && array_key_exists(0, $item)) {
+                if (
+                    is_string($name) &&
+                    is_array($item) &&
+                    array_key_exists(0, $item)
+                ) {
                     // This item has a numeric index. We just loop through the
                     // array and throw it back in the writer.
                     foreach ($item as $value) {
                         $this->write([$name => $value]);
                     }
-                } elseif (is_array($item) && isset($item['name'])) {
+                } elseif (is_array($item) && isset($item["name"])) {
                     // if the array had a 'name' element, we assume that this array
                     // describes a 'name' and optionally 'attributes' and 'value'.
-                    $name = $item['name'];
-                    $attributes = isset($item['attributes']) ? $item['attributes'] : [];
-                    $item = isset($item['value']) ? $item['value'] : null;
+                    $name = $item["name"];
+                    $attributes = isset($item["attributes"])
+                        ? $item["attributes"]
+                        : [];
+                    $item = isset($item["value"]) ? $item["value"] : null;
 
                     $this->startElement($name);
                     $this->writeAttributes($attributes);
@@ -93,14 +98,18 @@ class XmlWriter extends \Sabre\Xml\Writer
                     $this->endElement();
                 } else {
                     throw new \InvalidArgumentException(
-                        'The writer does not know how to serialize arrays with keys of type: ' .
-                        gettype($name) . "\n" .
-                        var_dump($value)
+                        "The writer does not know how to serialize arrays with keys of type: " .
+                            gettype($name) .
+                            "\n" .
+                            var_dump($value),
                     );
                 }
             }
         } else {
-            throw new \InvalidArgumentException('The writer cannot serialize values of type: ' . gettype($value));
+            throw new \InvalidArgumentException(
+                "The writer cannot serialize values of type: " .
+                    gettype($value),
+            );
         }
     }
 
@@ -115,15 +124,15 @@ class XmlWriter extends \Sabre\Xml\Writer
     {
         if (is_scalar($value)) {
             // String, integer, float, boolean
-            $this->text((string)$value);
+            $this->text((string) $value);
         } elseif ($value === null) {
             // nothing!
-        } elseif (is_array($value) && array_key_exists('name', $value)) {
+        } elseif (is_array($value) && array_key_exists("name", $value)) {
             // if the array had a 'name' element, we assume that this array
             // describes a 'name' and optionally 'attributes' and 'value'.
-            $name = $value['name'];
-            $attributes = $value['attributes'] ?? [];
-            $value = $value['value'] ?? null;
+            $name = $value["name"];
+            $attributes = $value["attributes"] ?? [];
+            $value = $value["value"] ?? null;
 
             $this->startElement($name);
             $this->writeAttributes($attributes);
@@ -131,18 +140,22 @@ class XmlWriter extends \Sabre\Xml\Writer
             $this->endElement();
         } elseif (is_array($value)) {
             foreach ($value as $name => $item) {
-                if (is_string($name) && is_array($item) && isset($item['name'])) {
+                if (
+                    is_string($name) &&
+                    is_array($item) &&
+                    isset($item["name"])
+                ) {
                     // The key is used for a name, but $item has 'name' and
                     // possibly 'value', so create a child node for it
                     $this->startElement($name);
                     $this->write($item);
                     $this->endElement();
-                } elseif (is_array($item) && isset($item['name'])) {
+                } elseif (is_array($item) && isset($item["name"])) {
                     // if the array had a 'name' element, we assume that this array
                     // describes a 'name' and optionally 'attributes' and 'value'.
-                    $name = $item['name'];
-                    $attributes = $item['attributes'] ?? [];
-                    $item = $item['value'] ?? null;
+                    $name = $item["name"];
+                    $attributes = $item["attributes"] ?? [];
+                    $item = $item["value"] ?? null;
 
                     $this->startElement($name);
                     $this->writeAttributes($attributes);
@@ -155,14 +168,18 @@ class XmlWriter extends \Sabre\Xml\Writer
                     $this->endElement();
                 } else {
                     throw new \InvalidArgumentException(
-                        'The writer does not know how to serialize arrays with keys of type: ' .
-                        gettype($name) . "\n" .
-                        var_dump($value)
+                        "The writer does not know how to serialize arrays with keys of type: " .
+                            gettype($name) .
+                            "\n" .
+                            var_dump($value),
                     );
                 }
             }
         } else {
-            throw new \InvalidArgumentException('The writer cannot serialize values of type: ' . gettype($value));
+            throw new \InvalidArgumentException(
+                "The writer cannot serialize values of type: " .
+                    gettype($value),
+            );
         }
     }
 
@@ -199,17 +216,18 @@ class XmlWriter extends \Sabre\Xml\Writer
      */
     public function startElement($name): bool
     {
-        if ($name[0] === '{') {
+        if ($name[0] === "{") {
             // A namespace is given
-            [$namespace, $localName]
-                = Service::parseClarkNotation($name);
+            [$namespace, $localName] = Service::parseClarkNotation($name);
 
             if (array_key_exists($namespace, $this->namespaceMap)) {
                 // The namespace exists in the namespace map given
                 $result = $this->startElementNS(
-                    $this->namespaceMap[$namespace] === '' ? null : $this->namespaceMap[$namespace],
+                    $this->namespaceMap[$namespace] === ""
+                        ? null
+                        : $this->namespaceMap[$namespace],
                     $localName,
-                    null
+                    null,
                 );
                 // Check to see if needed to write namespace
                 if ($this->sig && !$this->namespacesWritten) {
@@ -218,7 +236,10 @@ class XmlWriter extends \Sabre\Xml\Writer
                         $prefix = $this->namespaceMap[$namespace];
                         $this->written[$namespace] = $prefix;
                         // Write the namespace attribute
-                        $this->writeAttribute($prefix ? "xmlns:$prefix" : 'xmlns', $namespace);
+                        $this->writeAttribute(
+                            $prefix ? "xmlns:$prefix" : "xmlns",
+                            $namespace,
+                        );
                     }
                 }
             } else {
@@ -226,12 +247,17 @@ class XmlWriter extends \Sabre\Xml\Writer
                 // allowed, but it mustn't get a prefix.
                 if ($namespace === "" || $namespace === null) {
                     $result = $this->startElement($localName);
-                    $this->writeAttribute('xmlns', '');
+                    $this->writeAttribute("xmlns", "");
                 } else {
                     if (!isset($this->adhocNamespaces[$namespace])) {
-                        $this->adhocNamespaces[$namespace] = 'x' . (count($this->adhocNamespaces) + 1);
+                        $this->adhocNamespaces[$namespace] =
+                            "x" . (count($this->adhocNamespaces) + 1);
                     }
-                    $result = $this->startElementNS($this->adhocNamespaces[$namespace], $localName, $namespace);
+                    $result = $this->startElementNS(
+                        $this->adhocNamespaces[$namespace],
+                        $localName,
+                        $namespace,
+                    );
                 }
             }
         } else {
@@ -241,7 +267,10 @@ class XmlWriter extends \Sabre\Xml\Writer
         if (!$this->sig) {
             if (!$this->namespacesWritten) {
                 foreach ($this->namespaceMap as $namespace => $prefix) {
-                    $this->writeAttribute($prefix ? "xmlns:$prefix" : 'xmlns', $namespace);
+                    $this->writeAttribute(
+                        $prefix ? "xmlns:$prefix" : "xmlns",
+                        $namespace,
+                    );
                 }
                 $this->namespacesWritten = true;
             }

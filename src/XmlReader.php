@@ -3,11 +3,9 @@
 /**
  * Clase para leer los comprobantes
  *
- * PHP version 7.4
- *
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -43,11 +41,17 @@ class XmlReader extends Reader
         $reader->read();
         do {
             if ($reader->nodeType === \XMLReader::ELEMENT) {
-                if ($namespace !== null && $reader->namespaceURI === $namespace) {
+                if (
+                    $namespace !== null &&
+                    $reader->namespaceURI === $namespace
+                ) {
                     $localName = $reader->localName;
-                    $value = $reader->parseCurrentElement()['value'];
+                    $value = $reader->parseCurrentElement()["value"];
                     if (isset($values[$localName])) {
-                        if (is_array($values[$localName]) && array_key_exists(0, $values[$localName])) {
+                        if (
+                            is_array($values[$localName]) &&
+                            array_key_exists(0, $values[$localName])
+                        ) {
                             $values[$localName][] = $value;
                         } else {
                             $values[$localName] = [$values[$localName], $value];
@@ -57,7 +61,7 @@ class XmlReader extends Reader
                     }
                 } else {
                     $clark = $reader->getClark();
-                    $values[$clark] = $reader->parseCurrentElement()['value'];
+                    $values[$clark] = $reader->parseCurrentElement()["value"];
                 }
             } else {
                 $reader->read();
@@ -82,7 +86,7 @@ class XmlReader extends Reader
         // If there's no children, we don't do anything.
         if ($reader->isEmptyElement) {
             $reader->next();
-            return '';
+            return "";
         }
 
         $reader->read();
@@ -95,7 +99,9 @@ class XmlReader extends Reader
                 $text .= $reader->value;
                 $reader->read();
             } elseif ($type === \XMLReader::ELEMENT) {
-                $values[$reader->localName] = $reader->parseCurrentElement()['value'];
+                $values[$reader->localName] = $reader->parseCurrentElement()[
+                    "value"
+                ];
             } else {
                 $reader->read();
             }

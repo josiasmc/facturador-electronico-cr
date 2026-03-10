@@ -3,11 +3,9 @@
 /**
  * Clase para modificar la clase que crea xmls
  *
- * PHP version 7.4
- *
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -43,9 +41,11 @@ class XmlService extends \Sabre\Xml\Service
      *
      * @return string
      */
-    public function write(string $rootElementName, $value, string $contextUri = null): string
-    {
-
+    public function write(
+        string $rootElementName,
+        $value,
+        ?string $contextUri = null,
+    ): string {
         $w = new XmlWriter();
         $w->namespaceMap = $this->namespaceMap;
         $w->openMemory();
@@ -72,8 +72,8 @@ class XmlService extends \Sabre\Xml\Service
         $w->setIndent(true);
         $w->sig = true;
         if (is_array($rootElementName)) {
-            $w->startElement($rootElementName['name']);
-            $w->writeAttributes($rootElementName['attributes']);
+            $w->startElement($rootElementName["name"]);
+            $w->writeAttributes($rootElementName["attributes"]);
             $w->write($value);
             $w->endElement();
         } else {
@@ -99,8 +99,8 @@ class XmlService extends \Sabre\Xml\Service
         $w->sig = true;
         $w->disableNs();
         if (is_array($rootElementName)) {
-            $w->startElement($rootElementName['name']);
-            $w->writeAttributes($rootElementName['attributes']);
+            $w->startElement($rootElementName["name"]);
+            $w->writeAttributes($rootElementName["attributes"]);
             $w->write($value);
             $w->endElement();
         } else {
@@ -108,7 +108,6 @@ class XmlService extends \Sabre\Xml\Service
         }
         return $w->outputMemory();
     }
-
 
     /**
      * Parses a document in full.
@@ -127,8 +126,11 @@ class XmlService extends \Sabre\Xml\Service
      * @throws ParseException
      * @return array|object|string
      */
-    public function parse($input, string $contextUri = null, string &$rootElementName = null)
-    {
+    public function parse(
+        $input,
+        ?string $contextUri = null,
+        ?string &$rootElementName = null,
+    ) {
         if (is_resource($input)) {
             // Unfortunately the XMLReader doesn't support streams. When it
             // does, we can optimize this.
@@ -139,7 +141,7 @@ class XmlService extends \Sabre\Xml\Service
         $r->xml($input);
 
         $result = $r->parse();
-        $rootElementName = $result['name'];
-        return $result['value'];
+        $rootElementName = $result["name"];
+        return $result["value"];
     }
 }

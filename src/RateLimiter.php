@@ -4,16 +4,16 @@
  * Estadisticas de uso del API de Hacienda
  * Nota: Los limites de acceso unicamente se aplican a Sandbox
  *
- * PHP version 7.4
- *
  * @package   Contica\Facturacion
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
 
 namespace Contica\Facturacion;
+
+use mysqli;
 
 /**
  * Clase para manejar los limites de uso del API de Hacienda
@@ -25,7 +25,6 @@ class RateLimiter
     protected $rate_cache = []; //Cache con registros de uso de contribuyentes
     protected $id_cache = []; //Cache con cedulas de contribuyentes
     protected $limits; //Limites para las reglas disponibles
-    protected $log; //Logger del componente
 
     public const REQUESTS = 0; //Consultas o envios totales
     public const POST_202 = 1; //Envios con resultado 202
@@ -37,16 +36,14 @@ class RateLimiter
     public const IDP_401_403 = 64; //Solicitud con token o claves invalidas
     public const IDP_REQUEST = 128; //Uso interno para restringir consultas al IDP
 
-
     /**
      * Constructor del controlador de API
      *
-     * @param array $container   El contenedor del facturador
+     * @param mysqli $db
      */
-    public function __construct($container)
+    public function __construct(mysqli $db)
     {
-        $this->db = $container['db'];
-        $this->log = $container['log'];
+        $this->db = $db;
 
         //Establecer los limites por minuto definidos por Hacienda
         $this->limits = [
@@ -58,7 +55,7 @@ class RateLimiter
             RateLimiter::GET_40X => 20,
             RateLimiter::IDP_200 => 10,
             RateLimiter::IDP_401_403 => 5,
-            RateLimiter::IDP_REQUEST => 10
+            RateLimiter::IDP_REQUEST => 10,
         ];
     }
 
@@ -73,18 +70,18 @@ class RateLimiter
     {
         // Coger la cedula de la empresa
         if (isset($this->id_cache[$id])) {
-            $cedula = $this->id_cache[$id]['cedula'];
+            $cedula = $this->id_cache[$id]["cedula"];
         } else {
             $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=$id";
             $row = $this->db->query($sql);
             if ($row->num_rows == 0) {
-                $this->id_cache[$id] = ['cedula' => 0, 'staging' => false];
+                $this->id_cache[$id] = ["cedula" => 0, "staging" => false];
                 return 0; //Empresa no existe
             }
             $r = $row->fetch_row();
             $staging = $r[1] == 1; // Ambiente de pruebas
             $cedula = $r[0];
-            $this->id_cache[$id] = ['cedula' => $cedula, 'staging' => $staging];
+            $this->id_cache[$id] = ["cedula" => $cedula, "staging" => $staging];
         }
         return $cedula;
     }
@@ -100,18 +97,18 @@ class RateLimiter
     {
         // Coger la cedula de la empresa
         if (isset($this->id_cache[$id])) {
-            $isProd = $this->id_cache[$id]['staging'] == false;
+            $isProd = $this->id_cache[$id]["staging"] == false;
         } else {
             $sql = "SELECT cedula, id_ambiente FROM fe_empresas WHERE id_empresa=$id";
             $row = $this->db->query($sql);
             if ($row->num_rows == 0) {
-                $this->id_cache[$id] = ['cedula' => 0, 'staging' => false];
+                $this->id_cache[$id] = ["cedula" => 0, "staging" => false];
                 return false; //Empresa no existe
             }
             $r = $row->fetch_row();
             $staging = $r[1] == 1; // Ambiente de pruebas
             $cedula = $r[0];
-            $this->id_cache[$id] = ['cedula' => $cedula, 'staging' => $staging];
+            $this->id_cache[$id] = ["cedula" => $cedula, "staging" => $staging];
             $isProd = $staging == false;
         }
         return $isProd;
@@ -127,12 +124,12 @@ class RateLimiter
     private function getUserLimits($cedula)
     {
         $limits = $this->limits;
-        $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
+        $timestamp = new \DateTime()->getTimestamp(); //tiempo actual
         $rate_cache = $this->rate_cache;
         $refresh = false;
         if (isset($rate_cache[$cedula])) {
             //Consultar si los datos son frescos
-            if ($rate_cache[$cedula]['last_query'] < $timestamp - 15) {
+            if ($rate_cache[$cedula]["last_query"] < $timestamp - 15) {
                 //Datos con mas de 15 segundos, refrescar
                 $refresh = true;
             }
@@ -142,8 +139,8 @@ class RateLimiter
         if ($refresh) {
             //Cargar valores predeterminados
             $rate_cache[$cedula] = [
-                'last_query' => $timestamp,
-                'limits' => $limits
+                "last_query" => $timestamp,
+                "limits" => $limits,
             ];
 
             //Consultar transacciones del ultimo minuto
@@ -157,14 +154,16 @@ class RateLimiter
                 while ($r = $res->fetch_row()) {
                     $rule = $r[0];
                     $cant = $r[1];
-                    $rate_cache[$cedula]['limits'][$rule] -= $cant;
-                    $rate_cache[$cedula]['limits'][RateLimiter::REQUESTS] -= $cant;
+                    $rate_cache[$cedula]["limits"][$rule] -= $cant;
+                    $rate_cache[$cedula]["limits"][
+                        RateLimiter::REQUESTS
+                    ] -= $cant;
                 }
             }
         }
         //Actualizar cache
         $this->rate_cache = $rate_cache;
-        return $rate_cache[$cedula]['limits'];
+        return $rate_cache[$cedula]["limits"];
     }
 
     /**
@@ -188,11 +187,14 @@ class RateLimiter
         $isProd = $this->isProd($id);
         if ($isProd == false) {
             //En ambiente de pruebas, limitar los envios
-            $canPost = $userLimits[RateLimiter::REQUESTS] <= 0 ? false : $canPost;
-            $canPost = $userLimits[RateLimiter::POST_202] <= 0 ? false : $canPost;
+            $canPost =
+                $userLimits[RateLimiter::REQUESTS] <= 0 ? false : $canPost;
+            $canPost =
+                $userLimits[RateLimiter::POST_202] <= 0 ? false : $canPost;
         }
         // Esto se aplica en ambos ambientes
-        $canPost = $userLimits[RateLimiter::POST_401_403] <= 0 ? false : $canPost;
+        $canPost =
+            $userLimits[RateLimiter::POST_401_403] <= 0 ? false : $canPost;
         $canPost = $userLimits[RateLimiter::POST_40X] <= 0 ? false : $canPost;
         return $canPost;
     }
@@ -246,10 +248,15 @@ class RateLimiter
         $isProd = $this->isProd($id);
         if ($isProd == false) {
             // Limites para ambiente de pruebas
-            $canGetToken = $userLimits[RateLimiter::IDP_200] <= 0 ? false : true;
-            $canGetToken = $userLimits[RateLimiter::IDP_REQUEST] <= 0 ? false : $canGetToken;
+            $canGetToken =
+                $userLimits[RateLimiter::IDP_200] <= 0 ? false : true;
+            $canGetToken =
+                $userLimits[RateLimiter::IDP_REQUEST] <= 0
+                    ? false
+                    : $canGetToken;
         }
-        $canGetToken = $userLimits[RateLimiter::IDP_401_403] <= 0 ? false : $canGetToken;
+        $canGetToken =
+            $userLimits[RateLimiter::IDP_401_403] <= 0 ? false : $canGetToken;
         return $canGetToken;
     }
 
@@ -264,7 +271,7 @@ class RateLimiter
     public function registerTransaction($id, $type)
     {
         if (!isset($this->limits[$type]) && $type != RateLimiter::REQUESTS) {
-            throw new \Exception('El tipo de transaccion no es valido');
+            throw new \Exception("El tipo de transaccion no es valido");
         }
 
         $cedula = $this->getCedula($id);
@@ -272,11 +279,11 @@ class RateLimiter
             return true; //Contribuyente sin limites no necesita registros
         }
 
-        $timestamp = (new \DateTime())->getTimestamp(); //tiempo actual
+        $timestamp = new \DateTime()->getTimestamp(); //tiempo actual
 
         //Registrar transaccion en la cache
-        $this->rate_cache[$cedula]['limits'][$type]--;
-        $this->rate_cache[$cedula]['limits'][RateLimiter::REQUESTS]--;
+        $this->rate_cache[$cedula]["limits"][$type]--;
+        $this->rate_cache[$cedula]["limits"][RateLimiter::REQUESTS]--;
 
         //Registrar transaccion en la base de datos
         $isProd = $this->isProd($id);

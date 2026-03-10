@@ -3,11 +3,9 @@
 /**
  * Interfaz de almacenaje y lectura de la base de datos
  *
- * PHP version 7.4
- *
  * @package   Contica\FacturadorElectronico
  * @author    Josias Martin <josias@solucionesinduso.com>
- * @copyright 2025 Josias Martin
+ * @copyright 2026 Josias Martin
  * @license   https://opensource.org/licenses/MIT MIT
  * @link      https://github.com/josiasmc/facturador-electronico-cr
  */
@@ -53,14 +51,14 @@ class Storage
                     `uri_api` varchar(255) NOT NULL
                   )',
 
-                "INSERT INTO `fe_ambientes` 
-                    (`id_ambiente`, `nombre`, `client_id`, `uri_idp`, `uri_api`) 
+                "INSERT INTO `fe_ambientes`
+                    (`id_ambiente`, `nombre`, `client_id`, `uri_idp`, `uri_api`)
                     VALUES
-                    (1, 'Staging/Sandbox', 'api-stag', 
-                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut-stag/protocol/openid-connect/token', 
+                    (1, 'Staging/Sandbox', 'api-stag',
+                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut-stag/protocol/openid-connect/token',
                     'https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/'),
-                    (2, 'Producción', 'api-prod', 
-                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token', 
+                    (2, 'Producción', 'api-prod',
+                    'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token',
                     'https://api.comprobanteselectronicos.go.cr/recepcion/v1/'
                   )",
 
@@ -94,9 +92,10 @@ class Storage
                     ADD KEY `id_ambiente` (`id_ambiente`)',
 
                 'ALTER TABLE `fe_empresas`
-                    MODIFY `id_empresa` int(11) NOT NULL AUTO_INCREMENT;'
+                    MODIFY `id_empresa` int(11) NOT NULL AUTO_INCREMENT;',
             ],
-            2 => ["CREATE TABLE `fe_emisiones` (
+            2 => [
+                "CREATE TABLE `fe_emisiones` (
                     `id_emision` INT NOT NULL AUTO_INCREMENT ,
                     `clave` CHAR(50) NOT NULL ,
                     `id_empresa` INT NOT NULL ,
@@ -126,7 +125,7 @@ class Storage
                     `expires_in` INT NOT NULL ,
                     `refresh_token` VARCHAR(2048) NOT NULL ,
                     `refresh_expires_in` INT NOT NULL ,
-                    INDEX `cedula` (`cedula`, `id_ambiente`))"
+                    INDEX `cedula` (`cedula`, `id_ambiente`))",
             ],
             3 => [
                 "CREATE TABLE `fe_recepciones` (
@@ -141,17 +140,17 @@ class Storage
                     ADD KEY `CLAVE` (`clave`),
                     ADD KEY `EMPRESA` (`id_empresa`)",
                 "ALTER TABLE `fe_recepciones`
-                  MODIFY `id_recepcion` int(11) NOT NULL AUTO_INCREMENT"
+                  MODIFY `id_recepcion` int(11) NOT NULL AUTO_INCREMENT",
             ],
             4 => [
                 // Cambiar columnas de clave a decimal para ahorrar espacio en tabla
                 "ALTER TABLE `fe_emisiones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
                 "ALTER TABLE `fe_recepciones` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
-                "ALTER TABLE `fe_cola` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;"
+                "ALTER TABLE `fe_cola` CHANGE `clave` `clave` DECIMAL(50) NOT NULL;",
             ],
             5 => [
-                "UPDATE fe_ambientes SET `uri_api`='https://api-sandbox.comprobanteselectronicos.go.cr/recepcion/v1/' WHERE `id_ambiente`=1"
-            ]
+                "UPDATE fe_ambientes SET `uri_api`='https://api-sandbox.comprobanteselectronicos.go.cr/recepcion/v1/' WHERE `id_ambiente`=1",
+            ],
         ];
         foreach ($versions as $version => $statements) {
             if ($version > $current_version) {

@@ -1,54 +1,49 @@
 {
-    "name": "contica/facturador-electronico-cr",
-    "type": "library",
-    "description": "Un facturador de código libre para integrar facturación electrónica en Costa Rica a un proyecto PHP",
-    "keywords": [
-        "costa rica",
-        "facturacion electronica",
-        "facturacion"
-    ],
-    "homepage": "https://github.com/josiasmc/facturador-electronico-cr",
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Josias Martin",
-            "email": "josias@solucionesinduso.com",
-            "homepage": "https://github.com/josiasmc",
-            "role": "Developer"
-        }
-    ],
-    "require": {
-        "php": ">=7.4",
-        "defuse/php-encryption": "^2.4",
-        "guzzlehttp/guzzle": "^7.9",
-        "sabre/xml": "^4.0",
-        "monolog/monolog": "^2.10",
-        "league/flysystem-aws-s3-v3": "^2.5",
-        "league/flysystem": "^2.5"
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^5.7",
-        "squizlabs/php_codesniffer": "^3.11"
-    },
-    "config": {
-        "platform": {
-            "php": "7.4"
-        }
-    },
-    "autoload": {
-        "psr-4": {
-            "Contica\\Facturacion\\": "src"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Contica\\Facturacion\\": "tests"
-        }
-    },
-    "scripts": {
-        "test": "phpunit",
-        "generateKey": "php vendor/defuse/php-encryption/bin/generate-defuse-key",
-        "check-style": "phpcs -p --standard=PSR12 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests",
-        "fix-style": "phpcbf -p --standard=PSR12 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests"
+  "name": "contica/facturador-electronico-cr",
+  "type": "library",
+  "description": "Un facturador de código libre para integrar facturación electrónica en Costa Rica a un proyecto PHP",
+  "keywords": [
+    "costa rica",
+    "facturacion electronica",
+    "facturacion"
+  ],
+  "homepage": "https://github.com/josiasmc/facturador-electronico-cr",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Josias Martin",
+      "email": "josias@solucionesinduso.com",
+      "homepage": "https://github.com/josiasmc",
+      "role": "Developer"
     }
+  ],
+  "require": {
+    "defuse/php-encryption": "^2.4",
+    "guzzlehttp/guzzle": "^7.10",
+    "league/flysystem": "^3.32",
+    "league/flysystem-aws-s3-v3": "^3.32",
+    "monolog/monolog": "^3.10",
+    "php": ">=8.3",
+    "sabre/xml": "^4.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.5",
+    "squizlabs/php_codesniffer": "^4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Contica\\Facturacion\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Contica\\Facturacion\\": "tests"
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "generateKey": "php vendor/defuse/php-encryption/bin/generate-defuse-key",
+    "check-style": "phpcs -p --standard=PSR12 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests",
+    "fix-style": "phpcbf -p --standard=PSR12 --runtime-set ignore_errors_on_exit 1 --runtime-set ignore_warnings_on_exit 1 src tests"
+  }
 }

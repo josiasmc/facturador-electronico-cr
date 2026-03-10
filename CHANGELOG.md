@@ -6,6 +6,12 @@ Actualizaciones deben seguir los principios en [Mantenga un CHANGELOG](https://k
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-03-09
+
+### Changed
+
+- Se implementó PHP 8 y se actualizaron las dependencias
+
 ## [3.7.3] - 2025-11-03
 
 ### Fixed
