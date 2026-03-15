@@ -140,11 +140,13 @@ class Token
                     $accessToken = $this->saveToken($body);
                     return $accessToken;
                 }
-            } catch (\GuzzleHttp\Exception\ClientException $_) {
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
                 //error de cliente
                 //Datos incorrectos de autenticacion
+                $code = $e->getResponse()->getStatusCode();
+                $body = $e->getResponse()->getBody()->getContents();
                 $this->container->logger->info(
-                    "Fallo 40x consiguiendo token para {$this->cedula}",
+                    "Fallo {$code} consiguiendo token para {$this->cedula}. Respuesta: {$body}",
                 );
                 $ratelimiter->registerTransaction(
                     $this->id,
@@ -202,10 +204,12 @@ class Token
                     $accessToken = $this->saveToken($body);
                     return $accessToken;
                 }
-            } catch (\GuzzleHttp\Exception\ClientException $_) {
+            } catch (\GuzzleHttp\Exception\ClientException $e) {
                 //a 400 error
+                $code = $e->getResponse()->getStatusCode();
+                $body = $e->getResponse()->getBody()->getContents();
                 $this->container->logger->info(
-                    "Fallo 40x refrescando token para {$this->cedula}",
+                    "Fallo {$code} refrescando token para {$this->cedula}. Respuesta: {$body}",
                 );
                 $ratelimiter->registerTransaction(
                     $this->cedula,
